@@ -1,0 +1,41 @@
+10/14/2022 00:00:14 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+10/14/2022 00:00:14 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+10/14/2022 00:00:14 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+10/14/2022 00:00:14 - INFO - __main__ - Training vilt model on task #1: VQAv2
+10/14/2022 00:00:15 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 train dataloader with batch size of 32
+10/14/2022 00:00:17 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 train dataset, with 443757 examples
+/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/utils/data/dataloader.py:481: UserWarning: This DataLoader will create 2 worker processes in total. Our suggested max number of worker in current system is 1, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  cpuset_checked))
+10/14/2022 00:00:17 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 val dataloader with batch size of 32
+10/14/2022 00:00:19 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 val dataset, with 214354 examples
+Training epoch 1:   0%|                                                                                                 | 0/13868 [00:00<?, ?it/s]Training epoch 1:   0%|                                                                                                 | 0/13868 [00:03<?, ?it/s]
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 249, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 185, in main
+    ewc=None)
+  File "./train/train_vqa.py", line 252, in train
+    loss, output, ewc_task, ewc_loss = self.train_step(model, batch, optimizer, scheduler, ewc)
+  File "./train/train_vqa.py", line 154, in train_step
+    output = self.forward_pass(model, batch)
+  File "./train/train_vqa.py", line 132, in forward_pass
+    output = model(task_key='vqa', **inputs)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "./vilt.py", line 250, in forward
+    return self.forward_single_image(task_key, images, texts)
+  File "./vilt.py", line 278, in forward_single_image
+    TAB_output,_,_ = self.TAB(torch.cat((token, encoder_output), dim=0).reshape(-1,1,768))
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "./TAB.py", line 126, in forward
+    attn_mask=attn_mask
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "./TAB.py", line 75, in forward
+    q = self.q(x[0,:]).unsqueeze(1).reshape(B, 1, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
+RuntimeError: shape '[33, 1, 12, 64]' is invalid for input of size 768

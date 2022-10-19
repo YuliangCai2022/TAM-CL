@@ -1,0 +1,27 @@
+1. current vilt+dytox cannot freeze previous task_token if new task come
+
+2. the encoder output of vilt is [32,768]
+
+3. current loss is only vilt loss, haven't add Dytox loss, should add loss in train_vqa.py
+
+4. For dytox loss, we need kl loss and div loss, but only for CL scenario, if train on one task, no need
+
+5. need to seperate the oringal vilt and dytox-vilt to do comparison
+
+6. applying loss functions are in train_<dataset>.py,
+
+7. need function to freeze bottom k layers to accelerate training. 
+
+8. added flag --task_attention to tell if the model to use is original vilt or vilt + task attention block
+
+
+11711783 is with TAB but fixed the Q
+11712463 is without TAB freeze 11 layers
+11712504 is without TAB freeze 1 layer
+
+11. in train step, there's no different in logits
+
+12. vilt without TAB without fine tune on VQA : 45
+    vilt+TAB wihout find tune on VQA: 14.7
+
+    now: 57.7/62.82/63.39
