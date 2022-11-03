@@ -21,7 +21,7 @@ import torch
 from torch import nn
 from torch.optim import AdamW
 from transformers import get_polynomial_decay_schedule_with_warmup
-from torch import functional as F
+from torch.nn import functional as F
 from data.image_datasets.cocoimages_dataset import MSCOCOImagesDataset
 from data.visionlanguage_datasets.vqa_dataset import build_vqa_dataloader
 from train.task_trainer import TaskTrainer
@@ -39,7 +39,9 @@ class VQATrainer(TaskTrainer):
                  args: argparse.Namespace, 
                  task_configs: Dict, 
                  model_config: Dict, 
-                 device: torch.device):
+                 device: torch.device,
+                 teacher_model: torch.nn.Module,
+                 num_task: int):
 
         '''
         Initializes a Trainer that handles training of a model on the VQA task
@@ -54,9 +56,10 @@ class VQATrainer(TaskTrainer):
 
         self.args = args
         self.device = device
-
+        self.teacher_model = teacher_model
         self.vqa_config = task_configs['vqa']
         self.data_dir = os.path.join(args.climb_data_dir, self.vqa_config['data_dir'])
+        self.num_task = num_task
 
         # Model-specific stuff
         self.visual_input_type = model_config['visual_input_type']
@@ -168,15 +171,24 @@ class VQATrainer(TaskTrainer):
 
         #add by Yuliang call this only when have multitask
         # teacher model = model of previous task
-        #kd_loss = 0
-        #_kd_loss = F.kl_div(
-        #            F.log_softmax(logits / tau, dim=1),
-        #            F.log_softmax(main_output_old / tau, dim=1),
-        #            reduction='mean',
-        #            log_target=True
-        #    ) * (tau ** 2)
-        #kd_loss += args.kd * _kd_loss
-        # add Dytox loss here
+        if model.teacher_model != None and self.args.task_attention:
+            # get the output from the model of previous task
+            kd_loss = 0
+            tau = 5
+            old_inputs = self.batch2inputs_converter(batch)
+            output_old = model.teacher_model(task_key='vqa',**old_inputs)
+            output_old = output_old[1].reshape(-1,3129)
+            output_old = output_old[1:,:]
+            kd_loss = 0
+            _kd_loss = F.kl_div(
+                    F.log_softmax(logits / tau, dim=1),
+                    F.log_softmax(output_old / tau, dim=1),
+                    reduction='mean',
+                    log_target=True
+            ) * (tau ** 2)
+            kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
+            loss = kd_loss + (1-(self.num_task-1)/(self.num_task)) * loss
+        
 
         if ewc is not None and ewc.do_ewc() is True:
             ewc_task, ewc_loss = ewc.compute_ewc_loss(model)
@@ -317,6 +329,7 @@ class VQATrainer(TaskTrainer):
             model.set_active_adapters("vqa")
 
         # Load model with encoder weights from encoder_path, and classifier weights from model_path
+        model.teacher_model = None
         model.load_state_dict(torch.load(model_path))
         logger.info("Loaded model checkpoint from {}".format(model_path))
 

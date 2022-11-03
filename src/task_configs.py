@@ -21,7 +21,7 @@ vqa_config = {
         'num_labels': 3129,
         'num_images': 1,
         'model_type': 'classification',
-        'num_epochs': 10,
+        'num_epochs': 1,  # changed for test, originally is 10
         'lr': 1e-4,
         'weight_decay': 1e-2,
         'adam_epsilon': 1e-8,
@@ -41,7 +41,7 @@ nlvr_config = {
         'num_labels': 2,
         'num_images': 2,
         'model_type': 'classification',
-        'num_epochs': 10,
+        'num_epochs': 1, #changed for test, originally is 10
         'lr': 1e-4,
         'weight_decay': 1e-2,
         'adam_epsilon': 1e-8,

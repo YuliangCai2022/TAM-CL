@@ -19,6 +19,7 @@ import torch
 from torch import nn
 from torch.optim import AdamW
 from transformers import get_polynomial_decay_schedule_with_warmup
+from torch.nn import functional as F
 
 from data.visionlanguage_datasets.nlvr2_dataset import build_nlvr2_dataloader
 from train.task_trainer import TaskTrainer
@@ -39,7 +40,9 @@ class NLVR2Trainer(TaskTrainer):
                  args: argparse.Namespace, 
                  task_configs: Dict, 
                  model_config: Dict, 
-                 device: torch.device):
+                 device: torch.device,
+                 teacher_model: torch.nn.Module,
+                 num_task: int):
         '''
         Initializes a Trainer that handles training of a model on the NLVR2 task
 
@@ -53,10 +56,10 @@ class NLVR2Trainer(TaskTrainer):
 
         self.args = args
         self.device = device
-
+        self.teacher_model = teacher_model
         self.nlvr_config = task_configs['nlvr2']
         self.data_dir = os.path.join(args.climb_data_dir, self.nlvr_config['data_dir'])
-
+        self.num_task = num_task
         # Model-specific stuff
         self.visual_input_type = model_config['visual_input_type']
         self.batch2inputs_converter = model_config['batch2inputs_converter']
@@ -120,11 +123,45 @@ class NLVR2Trainer(TaskTrainer):
         ewc_task: string indicating which previous task's weights to compare against
         ewc_loss
         '''
-
+        ##if model.teacher_model != None:
+        #    logger.info("teacher_model is not none")
+        #else:
+        #    logger.info("teacher_model is none")
         output = self.forward_pass(model, batch)
-        logits = output[1]
+        logits = None
+        if self.args.task_attention:
+            logits = output[1].reshape(-1,2)
+            logits = logits[1:,:] # logtis size 16,2
+        else:
+            logits = output[1]
         target = batch['labels'].to(self.device)
         loss = self.loss_criterion(logits, target)
+
+        #add by Yuliang call this only when have multitask
+        # teacher model = model of previous task
+        if model.teacher_model != None and self.args.task_attention:
+            #logger.info("enter the KD loss")
+            # get the output from the model of previous task
+            kd_loss = 0
+            tau = 1
+            old_inputs = self.batch2inputs_converter(batch)
+            output_old = model.teacher_model(task_key='vqa',**old_inputs)
+            output_old = output_old[1].reshape(-1,2)
+            output_old = output_old[1:,:]
+            kd_loss = 0
+            _kd_loss = F.kl_div(
+                    F.log_softmax(logits / tau, dim=1),
+                    F.log_softmax(output_old / tau, dim=1),
+                    reduction='mean',
+                    log_target=True
+            ) * (tau ** 2)
+            kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
+            #logger.info("kd_loss: " + str(kd_loss) + "loss: " + str(loss))
+            #loss = kd_loss * 100 + (1-(self.num_task-1)/(self.num_task)) * loss
+            loss = 0.5 * kd_loss * 100000 + 0.5  * loss
+        else:
+            logger.info("not enter KD loss")
+
 
         if ewc is not None and ewc.do_ewc() is True:
             ewc_task, ewc_loss = ewc.compute_ewc_loss(model)
@@ -240,6 +277,9 @@ class NLVR2Trainer(TaskTrainer):
         for step, batch in enumerate(tqdm(self.nlvr_val_dataloader, desc='Evaluating on NLVR2 val set')):
             output = self.forward_pass(model, batch, do_eval=True)
             logits = output[1]
+            if self.args.task_attention:
+                logits = logits.reshape(-1,2)
+                logits = logits[1:,:]
             batch_scores = (logits.argmax(-1).cpu() == batch['labels'])
             eval_score += batch_scores.sum().item()
 

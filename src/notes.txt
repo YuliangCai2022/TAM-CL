@@ -25,3 +25,6 @@
     vilt+TAB wihout find tune on VQA: 14.7
 
     now: 57.7/62.82/63.39
+
+
+13. the output shape of classifier of Dytox is incremental every new task

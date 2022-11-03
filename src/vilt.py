@@ -175,10 +175,9 @@ class ViltContinualLearner(ContinualLearner):
         self.use_TAB = use_TAB
         # added by Yuliang
         # crreate task token
-        if use_TAB:
-            self.task_token = nn.Parameter(torch.zeros(1,encoder_dim))
-            nn.init.normal_(self.task_token, std=0.2)
-            #self.task_token.requires_grad = True
+        device = torch.device(
+        "cuda" if torch.cuda.is_available() else "cpu")
+        #self.task_token.requires_grad = True
         self.task_layer_dict = {}
         for task_key in ordered_cl_tasks:
             self.add_task_layer(task_key, task_configs[task_key])
@@ -193,13 +192,30 @@ class ViltContinualLearner(ContinualLearner):
         #added by Yuliang add Task Attention Block into the model
         # should add a block instead of single task attention layer
 
+        self.token_dict = nn.ParameterDict()
         if use_TAB:
             # initialize task attention block
             self.TAB = Block(
-                        dim=self.encoder_dim, num_heads=12, qkv_bias=False, qk_scale=None,
-                        drop=0., attn_drop=0., drop_path=0., norm_layer=nn.LayerNorm,
-                        attention_type=ClassAttention
-                    )
+                            dim=self.encoder_dim, num_heads=12, qkv_bias=False, qk_scale=None,
+                            drop=0., attn_drop=0., drop_path=0., norm_layer=nn.LayerNorm,
+                            attention_type=ClassAttention
+                        )
+
+            if len(self.ordered_cl_tasks) == 1:
+
+                task_token = nn.Parameter(torch.zeros(1,encoder_dim))
+                nn.init.normal_(task_token, std=0.2)
+                self.token_dict[ordered_cl_tasks[0]] = task_token
+            else:
+                # in a CL learning scenario, create a dictionary with key = task_key, and value = task_token
+                self.TAB_dict = {}
+                for task_key in ordered_cl_tasks:
+                    task_token = nn.Parameter(torch.zeros(1,encoder_dim))
+                    nn.init.normal_(task_token, std=0.2)
+                    self.token_dict[task_key] = task_token
+
+        
+
 
     def add_task_layer(self, task_key: str, task_config: Dict):
 
@@ -269,7 +285,7 @@ class ViltContinualLearner(ContinualLearner):
        
         # VQAv2 is trained here
         if self.use_TAB:
-            token = self.task_token
+            token = self.token_dict[task_key]
         encodings = self.vilt_encoder.process_inputs(images, texts)
 
         encoder_output = self.vilt_encoder(**encodings)
@@ -324,6 +340,11 @@ class ViltContinualLearner(ContinualLearner):
                 'image_token_type_idx': i + 1,
             }
             pooled_out = self.vilt_encoder(**encodings)
+
+            # modified by Yuliang, adding TAB here
+            if self.use_TAB:
+                token = self.token_dict[task_key]
+                pooled_out,_,_ = self.TAB(torch.cat((token, pooled_out), dim=0).reshape(-1,1,768))
             pooler_outputs.append(pooled_out)
         pooled_output = torch.cat(pooler_outputs, dim=-1) # [bs, 1536]
 

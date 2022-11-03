@@ -20,7 +20,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from transformers.adapters import AdapterConfig
+#from transformers.adapters import AdapterConfig
 
 #from modeling import load_encoder_map, create_continual_learner_map
 
@@ -117,7 +117,7 @@ def main():
                                 device=device,
                                 use_TAB=args.task_attention)
     # free the bottom layers
-    model.vilt_encoder.freeze_bottom_k_layers(11)
+    model.vilt_encoder.freeze_bottom_k_layers(9)
     args.visual_input_type = model_config['visual_input_type']
     output_dir = os.path.join(args.output_dir, experiment_name)
     results_file = os.path.join(output_dir, 'results.json')
@@ -132,6 +132,9 @@ def main():
             logger.info('W&B project: {}, experiment: {}'.format(wandb_config['project_name'], experiment_name))
             wandb_logger.initialize(wandb_config=wandb_config,
                                     experiment_name=experiment_name)
+
+        # initialize teacher model
+        teacher_model = None
 
         # if on-going experiment exists, load the old result
         results = []
@@ -148,11 +151,22 @@ def main():
         # Begin training on VL tasks sequentially
         logger.info("-"*100)
         logger.info("Training models on Vision-Language continual learning tasks...")
-        for task_num, task_key in enumerate(args.ordered_cl_tasks):
 
+        num_task = 0
+
+        for task_num, task_key in enumerate(args.ordered_cl_tasks):
+            num_task += 1
             logger.info("-"*100)
             task_name = task_configs[task_key]['task_name']
             task_output_dir = os.path.join(output_dir, 'checkpoints', 'task{}_{}'.format(task_num, task_key))
+
+            # freeze the task_token for other tasks
+            for key in model.token_dict:
+                if key != task_key:
+                    model.token_dict[key].requires_grad=False
+                else:
+                    model.token_dict[key].requires_grad=True
+                    logger.info("********************** found the task token with same task key! *****************************")
 
             if os.path.isfile(os.path.join(task_output_dir, 'model')):
 
@@ -170,16 +184,17 @@ def main():
                     torch.save(model.state_dict(), os.path.join(task_output_dir, 'model'))
                     logger.info("Saved model with uninitialized keys as new checkpoint")
                 logger.info("Loaded model checkpoint from task {}! Moving on to next task...".format(task_name))
+                model.teacher_model = copy.deepcopy(model)
 
                 task_trainer_class = task_configs[task_key]['task_trainer']
-                task_trainer = task_trainer_class(args, task_configs, model_config, device)
+                task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, num_task)
 
             else:
 
                 #Create the Trainer method for the current CL task, and call the train method
                 logger.info("Training {} model on task #{}: {}".format(args.encoder_name, task_num+1, task_name))
                 task_trainer_class = task_configs[task_key]['task_trainer']
-                task_trainer = task_trainer_class(args, task_configs, model_config, device)
+                task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, num_task)
                 best_eval_score, best_model = task_trainer.train(model,
                                                                 replay_memory=None,
                                                                 ewc=None)
@@ -206,6 +221,11 @@ def main():
                 json.dump(results, open(results_file, 'w'))
                 logger.info("Saved continual learning results so far!")
 
+                teacher_model = copy.deepcopy(model)
+                teacher_model.vilt_encoder.freeze_all_weights()
+                model.teacher_model = teacher_model
+                #for param in teacher_model.TAB:
+                #    param.requires_grad = False
             task_trainers[task_key] = task_trainer
 
 
