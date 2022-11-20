@@ -1,0 +1,47 @@
+11/09/2022 13:12:37 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/09/2022 13:12:37 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+11/09/2022 13:12:37 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/09/2022 13:12:37 - INFO - __main__ - ********************** found the task token with same task key! *****************************
+11/09/2022 13:12:37 - INFO - __main__ - Training vilt model on task #1: NLVRv2
+11/09/2022 13:12:37 - INFO - data.visionlanguage_datasets.nlvr2_dataset - Creating NLVR2 train dataloader with batch size of 16
+11/09/2022 13:12:38 - INFO - data.visionlanguage_datasets.nlvr2_dataset - Loaded NLVRv2 train dataset, with 86372 examples
+11/09/2022 13:12:38 - INFO - data.visionlanguage_datasets.nlvr2_dataset - Creating NLVR2 val dataloader with batch size of 16
+11/09/2022 13:12:38 - INFO - data.visionlanguage_datasets.nlvr2_dataset - Loaded NLVRv2 val dataset, with 6982 examples
+Creating DyTox!
+n_examples is 86372
+n_examples is 6982
+Training epoch 1:   0% 0/5399 [00:00<?, ?it/s]Training epoch 1:   0% 0/5399 [00:07<?, ?it/s]
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 286, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 212, in main
+    ewc=None)
+  File "./train/train_nlvr2.py", line 240, in train
+    loss, output, ewc_task, ewc_loss = self.train_step(model, batch, optimizer, scheduler, ewc)
+  File "./train/train_nlvr2.py", line 130, in train_step
+    output = self.forward_pass(model, batch)
+  File "./train/train_nlvr2.py", line 104, in forward_pass
+    output = model(task_key='nlvr2', **inputs)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "./dytox.py", line 277, in forward
+    tokens, last_token, _ = self.forward_features(task_key, images=images, texts=texts)
+  File "./dytox.py", line 226, in forward_features
+    vilt_output = self.transformer(task_key='vqa', images=images, texts=texts)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "./vilt.py", line 270, in forward
+    return self.forward_single_image(task_key, images, texts)
+  File "./vilt.py", line 292, in forward_single_image
+    encodings = self.vilt_encoder.process_inputs(images, texts)
+  File "./vilt.py", line 98, in process_inputs
+    padding=True, truncation=True, return_tensors='pt').to(self.device)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/transformers/models/vilt/processing_vilt.py", line 155, in __call__
+    encoding_feature_extractor = self.feature_extractor(images, return_tensors=return_tensors)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/transformers/models/vilt/feature_extraction_vilt.py", line 240, in __call__
+    "Images must of type `PIL.Image.Image`, `np.ndarray` or `torch.Tensor` (single example), "
+ValueError: Images must of type `PIL.Image.Image`, `np.ndarray` or `torch.Tensor` (single example), `List[PIL.Image.Image]`, `List[np.ndarray]` or `List[torch.Tensor]` (batch of examples).

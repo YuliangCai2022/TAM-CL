@@ -1,0 +1,43 @@
+11/08/2022 22:28:54 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/08/2022 22:28:54 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+11/08/2022 22:28:54 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/08/2022 22:28:54 - INFO - __main__ - Training vilt model on task #1: VQAv2
+11/08/2022 22:28:55 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 train dataloader with batch size of 32
+11/08/2022 22:28:58 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 train dataset, with 443757 examples
+11/08/2022 22:28:58 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 val dataloader with batch size of 32
+11/08/2022 22:28:59 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 val dataset, with 214354 examples
+Creating DyTox!
+Training epoch 1:   0% 0/13868 [00:00<?, ?it/s]11/08/2022 22:29:04 - INFO - dytox - task_token shape is torch.Size([32, 1, 768])
+11/08/2022 22:29:04 - INFO - dytox - vilt_output shape is torch.Size([32, 1, 768])
+11/08/2022 22:29:04 - INFO - dytox - task_token shape is torch.Size([32, 1, 768])
+Training epoch 1:   0% 0/13868 [00:10<?, ?it/s][tensor([[ 0.6090, -0.1119, -0.0293,  ...,  0.2753, -0.3503, -0.1706],
+        [ 0.5734, -0.0148,  0.0215,  ...,  0.2441, -0.5233, -0.2489],
+        [ 0.3455,  0.0657, -0.0385,  ...,  0.2100, -0.3024, -0.1075],
+        ...,
+        [ 0.6355,  0.0467, -0.0058,  ...,  0.2386, -0.4683, -0.2055],
+        [ 0.5321, -0.0361, -0.0830,  ...,  0.2338, -0.3379, -0.1698],
+        [ 0.6415,  0.0795, -0.0834,  ...,  0.2380, -0.3112, -0.3282]],
+       device='cuda:0', grad_fn=<SelectBackward0>)]
+
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 280, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 211, in main
+    ewc=None)
+  File "./train/train_vqa.py", line 268, in train
+    loss, output, ewc_task, ewc_loss = self.train_step(model, batch, optimizer, scheduler, ewc)
+  File "./train/train_vqa.py", line 159, in train_step
+    output = self.forward_pass(model, batch)
+  File "./train/train_vqa.py", line 137, in forward_pass
+    output = model(task_key='vqa', **inputs)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "./dytox.py", line 279, in forward
+    return self.forward_classifier(tokens, task_key, last_token)
+  File "./dytox.py", line 266, in forward_classifier
+    logits.append(self.head[task_key](tokens[i]))
+TypeError: unhashable type: 'list'

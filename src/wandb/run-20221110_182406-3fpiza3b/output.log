@@ -1,0 +1,25 @@
+11/10/2022 18:24:07 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/10/2022 18:24:07 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+11/10/2022 18:24:07 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/10/2022 18:24:07 - INFO - __main__ - Training vilt model on task #1: VQAv2
+11/10/2022 18:24:08 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 train dataloader with batch size of 32
+11/10/2022 18:24:11 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 train dataset, with 443757 examples
+11/10/2022 18:24:11 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 val dataloader with batch size of 32
+11/10/2022 18:24:12 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 val dataset, with 214354 examples
+Training epoch 1:   0% 0/13868 [00:00<?, ?it/s]Training epoch 1:   0% 1/13868 [00:01<7:26:47,  1.93s/it]Training epoch 1:   0% 2/13868 [00:02<4:40:27,  1.21s/it]Training epoch 1:   0% 3/13868 [00:03<3:53:59,  1.01s/it]Training epoch 1:   0% 4/13868 [00:04<3:25:36,  1.12it/s]Training epoch 1:   0% 5/13868 [00:04<3:16:42,  1.17it/s]Training epoch 1:   0% 6/13868 [00:05<3:05:07,  1.25it/s]Training epoch 1:   0% 7/13868 [00:06<2:59:44,  1.29it/s]Training epoch 1:   0% 8/13868 [00:07<2:54:10,  1.33it/s]Training epoch 1:   0% 9/13868 [00:07<2:52:28,  1.34it/s]Training epoch 1:   0% 10/13868 [00:08<2:50:44,  1.35it/s]Training epoch 1:   0% 10/13868 [00:09<3:44:23,  1.03it/s]
+Evaluating on VQA val set:   0% 0/6699 [00:00<?, ?it/s]Evaluating on VQA val set:   0% 1/6699 [00:01<2:05:42,  1.13s/it]Evaluating on VQA val set:   0% 2/6699 [00:01<1:33:55,  1.19it/s]Evaluating on VQA val set:   0% 3/6699 [00:02<1:27:15,  1.28it/s]Evaluating on VQA val set:   0% 4/6699 [00:03<1:25:15,  1.31it/s]Evaluating on VQA val set:   0% 5/6699 [00:03<1:22:10,  1.36it/s]Evaluating on VQA val set:   0% 6/6699 [00:04<1:20:39,  1.38it/s]Evaluating on VQA val set:   0% 7/6699 [00:05<1:20:30,  1.39it/s]Evaluating on VQA val set:   0% 8/6699 [00:05<1:17:46,  1.43it/s]Evaluating on VQA val set:   0% 9/6699 [00:06<1:17:17,  1.44it/s]Evaluating on VQA val set:   0% 10/6699 [00:07<1:16:53,  1.45it/s]Evaluating on VQA val set:   0% 10/6699 [00:07<1:25:17,  1.31it/s]
+11/10/2022 18:24:32 - INFO - train.train_vqa - Evaluation after epoch 1: 0.00
+11/10/2022 18:24:32 - INFO - __main__ - Best VQAv2 evaluation score = 0.00, after epoch 1
+11/10/2022 18:24:32 - INFO - __main__ - Saving best model and encoder checkpoint after VQAv2 training
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 292, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 234, in main
+    torch.save(best_task_model.transformer.get_encoder().state_dict(), os.path.join(task_output_dir, 'encoder'))
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/module.py", line 1178, in __getattr__
+    type(self).__name__, name))
+AttributeError: 'ViltContinualLearner' object has no attribute 'transformer'

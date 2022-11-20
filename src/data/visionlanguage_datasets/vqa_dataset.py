@@ -37,6 +37,7 @@ class VQADataset(Dataset):
                  data_dir: str, 
                  images_dataset: MSCOCOImagesDataset, 
                  split: str, 
+                 ft: bool,
                  **kwargs):
 
         """
@@ -54,6 +55,7 @@ class VQADataset(Dataset):
         self.images_dataset = images_dataset
         self.data_dir = data_dir
         self.split = split
+        self.finetune = ft
         self.tokenizer = kwargs['tokenizer'] if 'tokenizer' in kwargs else None
 
         self.annotations_file = os.path.join(data_dir, 'v2_mscoco_{}2014_annotations.json'.format(split))
@@ -67,7 +69,8 @@ class VQADataset(Dataset):
 
 
         self.cached_data_file = os.path.join(data_dir, 'cached_vqa_data', 'vqa_{}.pkl'.format(split))
-        if os.path.exists(self.cached_data_file):
+        # modified here by Yuliang for quick run!!
+        if False: #os.path.exists(self.cached_data_file) and not self.finetune:
             # Load cached data
             self.data = pkl.load(open(self.cached_data_file, 'rb'))
 
@@ -84,6 +87,8 @@ class VQADataset(Dataset):
                 correct_answer = anno['multiple_choice_answer']
                 image_id = anno['image_id']
 
+                if image_id not in self.images_dataset.imageid2filename:
+                    continue
                 # Retrieve the question for this annotation
                 qdata = qid2qdata[qid]
                 assert qdata['image_id'] == image_id
@@ -124,8 +129,8 @@ class VQADataset(Dataset):
                             'scores': scores,
                             'split': split}
                 self.data.append(example)
-
-            pkl.dump(self.data, open(self.cached_data_file, 'wb'))
+            if not self.finetune:
+                pkl.dump(self.data, open(self.cached_data_file, 'wb'))
 
         self.n_examples = len(self.data)
 

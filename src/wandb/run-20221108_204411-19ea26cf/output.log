@@ -1,0 +1,25 @@
+11/08/2022 20:44:12 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/08/2022 20:44:12 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+Creating DyTox!
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 278, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 165, in main
+    model = update_dytox(model, num_task, args)
+  File "./dytox.py", line 295, in update_dytox
+    individual_classifier='1-1',
+  File "./dytox.py", line 72, in __init__
+    self.task_tokens = nn.ParameterList([transformer.encoder_dim])
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/container.py", line 434, in __init__
+    self += parameters
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/container.py", line 482, in __iadd__
+    return self.extend(parameters)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/container.py", line 509, in extend
+    self.register_parameter(str(offset + i), param)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/module.py", line 356, in register_parameter
+    .format(torch.typename(param), name))
+TypeError: cannot assign 'int' object to parameter '0' (torch.nn.Parameter or None required)

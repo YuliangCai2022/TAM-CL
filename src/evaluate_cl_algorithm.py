@@ -53,10 +53,10 @@ def upstream_knowledge_transfer_eval(args: argparse.Namespace, results_file: str
         cl_task_score = task_results['best_score']
 
         # Get task score for direct finetuning of pretrained model on this task (without CL)
-        singletask_output_dir = os.path.join(args.output_dir, '{}-singletask_ft-task0_{}'.format(args.encoder_name, task_key))
+        singletask_output_dir = os.path.join(args.output_dir, '{}-singletask_ft'.format(args.encoder_name))
         singletask_results = json.load(open(os.path.join(singletask_output_dir, 'results.json')))
         assert len(singletask_results) == 1
-        assert singletask_results[0]['task_key'] == task_key
+        #assert singletask_results[0]['task_key'] == task_key
         singletask_score = singletask_results[0]['best_score']
 
         # Compute relative gain

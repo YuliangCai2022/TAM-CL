@@ -63,7 +63,7 @@ snli_ve_config = {
         'num_labels': 3,
         'num_images': 1,
         'model_type': 'classification',
-        'num_epochs': 5,
+        'num_epochs': 1, # 5
         'lr': 5e-5,
         'weight_decay': 1e-2,
         'adam_epsilon': 1e-8,

@@ -28,3 +28,32 @@
 
 
 13. the output shape of classifier of Dytox is incremental every new task
+
+14. during the training, after task 1, the batch data will go to every current and previous header and get result and concatenate them together as logits.
+
+15. Remember to run experiment of Dytox on CIFAR100
+
+16. Dytox get classifier result only from current task's classifier
+
+17. modify the dytox.py 
+
+18. the classifier output num is correct
+
+19. 63 no dytox 69 normal dytox 47 dytox no ft 45 dytox no ft no kd 60 dytox with div no ft 63 dytox with div alter no ft, 11 dytox with div with ft， 41
+dytox with div with 2 times kd 77 dytox with div with 2 times div 71 dytox with div freeze teacher model tab 62 69 freeze tab at all after first task
+21 dytox with freeze tab and head 30% training dataset 55 freeze tab and head both teacher model and model after first task 30% dataset 
+29 30% dataset non dytox 71 30% dataset dytox freeze all 30 30% data dytox freeze vilt and head 51 30% data dytox freeze vilt and tab
+65 30% data freeze tab and head
+46 30% data no freeze dytox
+362 30% data no freeze dytox freeze 11 (max) layers of vilt
+348 30% data no freeze dytox freeze 6 layers of vilt
+0362 30% data no freeze dytox freze 10 layers of vilt
+174 30% data freeze vilt freeze 10 layers of vilt (a double check)
+
+362 30% data freeze 10 layers of vilt, dytox no kdl-loss ratio correction, no vilt kd loss [53.08, 70.86, 7.93% (48.87)]
+339 30% data freeze 10 layers of vilt, non-dytox
+654 30% data freeze 10 layers of vilt, correct the ratio of kd_loss and loss, no vilt kd loss [51.50, 70.45, 5.24% (48.80)]
+005 30% data freeze 10 layers of vilt, correct the ratio of kd_loss and loss, add vilt kd loss * 10000 [54.3, 69.62, 2.9% (52.73)]
+224 30% data freeze 10 layers of vilt, correct the ratio of kd_loss and loss, add vilt kd loss * 1000000
+
+20. it is the vilt part that make the forgetting rate high, after freeze the vilt after training the VQA, the SNLI become low but forgetting rate become low!

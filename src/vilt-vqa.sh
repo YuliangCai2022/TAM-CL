@@ -10,4 +10,5 @@ python -m run --encoder_name vilt \
                         --output_dir /project/rostamim_919/caiyulia/Multi-Dytox/output/ \
                         --batch_size 32 \
                         --task_attention 0 \
-                        --do_wandb_logging 
+                        --do_wandb_logging \
+                        --dytox 0

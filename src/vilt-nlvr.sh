@@ -9,5 +9,6 @@ python -m run --encoder_name vilt \
                         --do_eval \
                         --output_dir /project/rostamim_919/caiyulia/Multi-Dytox/output/ \
                         --batch_size 32 \
-                        --task_attention 0 \
-                        --do_wandb_logging 
+                        --task_attention 1 \
+                        --do_wandb_logging \
+                        --dytox 1

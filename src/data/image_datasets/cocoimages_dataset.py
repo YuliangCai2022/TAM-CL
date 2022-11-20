@@ -9,7 +9,7 @@ import base64
 from tqdm import tqdm
 from collections import defaultdict
 import pickle as pkl
-
+from random import *
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -19,9 +19,16 @@ from torch.utils.data import Dataset
 from PIL import Image
 from image_utils import resize_image
 
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+        format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+        datefmt='%m/%d/%Y %H:%M:%S',
+        level=logging.INFO)
+
 class MSCOCOImagesDataset(Dataset):
 
-    def __init__(self, coco_dir: str, visual_input_type: str, image_size=(384,640)):
+    def __init__(self, coco_dir: str, visual_input_type: str, image_size=(384,640), ft=False):
 
         '''
         Initializes an MSCOCOImagesDataset instance that handles image-side processing for VQA and other tasks that use MS-COCO images
@@ -29,16 +36,24 @@ class MSCOCOImagesDataset(Dataset):
         visual_input_type: format of visual input to model
         image_size: tuple indicating size of image input to model
         '''
-
+        logger.info("in the MSCOCOImagesDatset")
         self.images_dir = os.path.join(coco_dir, 'images')          # Images across all 2017 splits stored in same directory
         self.image_size = image_size
-
+        self.finetune = ft
         self.visual_input_type = visual_input_type
         assert visual_input_type in ['pil-image', 'raw', 'fast-rcnn']
 
         image_filenames = os.listdir(self.images_dir)
         self.imageid2filename = {}
         for fn in image_filenames:
+            prob = randint(1,100)
+            if self.finetune:
+                if prob > 10:
+                    continue
+            else:
+                if prob > 30:
+                    continue
+               
             fn_split = fn.split('_')[-1]
             image_id = int(fn_split.strip('.jpg'))
             self.imageid2filename[image_id] = os.path.join(self.images_dir, fn)

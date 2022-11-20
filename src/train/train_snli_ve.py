@@ -21,6 +21,7 @@ import torch
 from torch import nn
 from torch.optim import AdamW
 from transformers import get_polynomial_decay_schedule_with_warmup
+from torch.nn import functional as F
 
 from data.image_datasets.flickr30kimages_dataset import Flickr30KImagesDataset
 from data.visionlanguage_datasets.snli_ve_dataset import build_snli_ve_dataloader
@@ -39,7 +40,10 @@ class SNLIVETrainer(TaskTrainer):
                  args: argparse.Namespace, 
                  task_configs: Dict, 
                  model_config: Dict, 
-                 device: torch.device):
+                 device: torch.device,
+                 teacher_model: torch.nn.Module,
+                 ft: bool,
+                 num_task: int):
         '''
         Initializes a Trainer that handles training of a model on the SNLI-VE task
 
@@ -53,13 +57,14 @@ class SNLIVETrainer(TaskTrainer):
 
         self.args = args
         self.device = device
-
+        self.finetune = ft
         self.snli_ve_config = task_configs['snli-ve']
         self.data_dir = os.path.join(args.climb_data_dir, self.snli_ve_config['data_dir'])
 
         # Model-specific stuff
         self.visual_input_type = model_config['visual_input_type']
         self.batch2inputs_converter = model_config['batch2inputs_converter']
+        self.num_task = num_task
 
         # Load Flickr30K Images dataset for image data backbone
         images_source = self.snli_ve_config['images_source']
@@ -72,12 +77,14 @@ class SNLIVETrainer(TaskTrainer):
                                                                  data_dir=self.data_dir,
                                                                  images_dataset=images_dataset,
                                                                  split='train',
+                                                                 ft=self.finetune,
                                                                  visual_input_type=self.visual_input_type)
 
         self.snli_ve_dev_dataloader = build_snli_ve_dataloader(args=args,
                                                                data_dir=self.data_dir,
                                                                images_dataset=images_dataset,
                                                                split='dev',
+                                                               ft=self.finetune,
                                                                visual_input_type=self.visual_input_type)
 
         # Training hyperparameters
@@ -130,9 +137,58 @@ class SNLIVETrainer(TaskTrainer):
         ''' 
 
         output = self.forward_pass(model, batch)
-        logits = output[1]
+        if self.args.dytox == 0:
+            logits = output[1]
+        else:
+            logits = output['logits']
         target = batch['labels'].to(self.device)
         loss = self.loss_criterion(logits, target)
+
+        #add by Yuliang call this only when have multitask
+        # teacher model = model of previous task
+        if self.args.dytox != 0:
+            if model.teacher_model != None and self.args.task_attention:
+                # get the output from the model of previous task
+                kd_loss = 0
+                tau = 5
+                old_inputs = self.batch2inputs_converter(batch)
+                output_old = model.teacher_model(task_key='vqa',**old_inputs)
+                output_old = output_old['logits']
+                logits_kd = logits[:,:output_old.shape[1]]
+                kd_loss = 0
+                _kd_loss = F.kl_div(
+                        F.log_softmax(logits_kd / tau, dim=1),
+                        F.log_softmax(output_old / tau, dim=1),
+                        reduction='mean',
+                        log_target=True
+                ) * (tau ** 2)
+                kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
+                
+                loss = kd_loss * 20000 + (1-(self.num_task-1)/(self.num_task)) * loss
+
+                
+                # creating KD loss for vilt intermediate output
+                inputs = self.batch2inputs_converter(batch)
+
+                _,_,_,curr_vilt_output = model.forward_features(task_key='snli-ve', **inputs)
+                _,_,_,old_vilt_output = model.teacher_model.forward_features(task_key='vqa', **inputs)
+                kd_loss_vilt = 0
+                tau = 1
+                _kd_loss_vilt = F.kl_div(
+                        F.log_softmax(curr_vilt_output / tau, dim=1),
+                        F.log_softmax(old_vilt_output / tau, dim=1),
+                        reduction='mean',
+                        log_target=True
+                ) * (tau ** 2)
+                kd_loss_vilt += (self.num_task-1)/(self.num_task) * _kd_loss_vilt
+                logger.info("kd_loss_vilt is " + str(kd_loss_vilt))
+                loss = kd_loss_vilt * 1000000 + loss
+        
+            loss -= 0.1 * self.loss_criterion(model.task_tokens[0],model.task_tokens[1])
+
+
+            
+
 
         if ewc is not None and ewc.do_ewc() is True:
             ewc_task, ewc_loss = ewc.compute_ewc_loss(model)
@@ -208,7 +264,7 @@ class SNLIVETrainer(TaskTrainer):
 
             model.train()
             for step, batch in enumerate(tqdm(self.snli_ve_train_dataloader, desc='Training epoch {}'.format(epoch+1))):
-
+                
                 loss, output, ewc_task, ewc_loss = self.train_step(model, batch, optimizer, scheduler, ewc)
 
                 if self.args.cl_algorithm == 'experience_replay' and do_replay is True:
@@ -216,20 +272,24 @@ class SNLIVETrainer(TaskTrainer):
                         sampled_replay_task = replay_memory.sample_replay_task()
                         replay_loss = replay_memory.run_replay_step(task_key=sampled_replay_task, model=model)
 
-                if (step + 1) % wandb_logger.log_freq == 0:
+                if (step + 1) % wandb_logger.get_log_freq() == 0:
                     log_dict = {'snli-ve': {'loss': loss.item()}}
                     if ewc is not None and do_ewc is True:
                         log_dict[ewc_task] = {'ewc_loss': ewc_loss.item()}
                     wandb_logger.log(log_dict)
 
             # Do evaluation after epoch
-            eval_score = self.eval(model)
+            if not self.finetune:
+                eval_score = self.eval(model)
+            else: 
+                return copy.deepcopy(model)
             logger.info("Evaluation after epoch {}: {:.2f}".format(epoch+1, eval_score))
             wandb_logger.log({'snli-ve': {'dev_score': eval_score}})
             if eval_score > best_score:
                 logger.info("New best evaluation score: {:.2f}".format(eval_score))
                 best_score = eval_score
                 best_model['epoch'] = epoch
+                model.teacher_model = None
                 best_model['model'] = copy.deepcopy(model)
 
         return best_score, best_model
@@ -243,11 +303,13 @@ class SNLIVETrainer(TaskTrainer):
 
         model.eval()
         eval_score = 0
-
         for step, batch in enumerate(tqdm(self.snli_ve_dev_dataloader, desc='Evaluating on SNLI-VE val set')):
+           
             output = self.forward_pass(model, batch, do_eval=True)
-
-            logits = output[1]
+            if self.args.dytox:
+                logits = output['logits']
+            else:
+                logits = output[1]
             batch_scores = (logits.argmax(-1).cpu() == batch['labels'])
             eval_score += batch_scores.sum().item()
 

@@ -1,0 +1,27 @@
+11/10/2022 18:37:31 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/10/2022 18:37:31 - INFO - __main__ - Cached results:
+11/10/2022 18:37:31 - INFO - __main__ - Task #1: VQAv2 - best score = 0.00
+11/10/2022 18:37:31 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/10/2022 18:37:31 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+11/10/2022 18:37:31 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/10/2022 18:37:31 - INFO - __main__ - Found checkpoint for task VQAv2!
+11/10/2022 18:37:36 - INFO - __main__ - Loaded model checkpoint from task VQAv2! Moving on to next task...
+11/10/2022 18:37:37 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 train dataloader with batch size of 32
+11/10/2022 18:37:39 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 train dataset, with 443757 examples
+11/10/2022 18:37:39 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 val dataloader with batch size of 32
+11/10/2022 18:37:40 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 val dataset, with 214354 examples
+11/10/2022 18:37:40 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/10/2022 18:37:40 - INFO - __main__ - Evaluating FORWARD TRANSFER of vilt model on vqa
+11/10/2022 18:37:40 - INFO - evaluate_cl_algorithm - ----------------------------------------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 294, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 264, in main
+    upstream_knowledge_dict = upstream_knowledge_transfer_eval(args, results_file)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/evaluate_cl_algorithm.py", line 64, in upstream_knowledge_transfer_eval
+    relative_gain = 100.0*(cl_task_score - singletask_score)/(singletask_score - random_score)
+ZeroDivisionError: float division by zero

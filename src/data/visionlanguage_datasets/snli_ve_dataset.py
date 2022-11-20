@@ -39,6 +39,7 @@ class SnliVEDataset(Dataset):
                  data_dir: str, 
                  images_dataset: Flickr30KImagesDataset, 
                  split: str, 
+                 ft: bool,
                  **kwargs):
 
         """
@@ -61,20 +62,24 @@ class SnliVEDataset(Dataset):
         self.image_dir = os.path.join(data_dir, 'flickr30k_images')
         self.split = split
         self.tokenizer = kwargs['tokenizer'] if 'tokenizer' in kwargs else None
-
+        self.finetune = ft
         self.annotations_file = os.path.join(data_dir, 'snli_ve_{}.jsonl'.format(split))
         self.categories = ['entailment', 'contradiction', 'neutral']
         self.cat2label = {cat: i for i, cat in enumerate(self.categories)}
         self.num_labels = len(self.categories)
 
         self.cached_data_file = os.path.join(data_dir, 'cached_ve_data', 'snli-ve_{}.pkl'.format(split))
-        if os.path.isfile(self.cached_data_file):
+        if False: # os.path.isfile(self.cached_data_file):
             self.data = pkl.load(open(self.cached_data_file, 'rb'))
         else:
             self.data = []
             json_lines = jsonlines.open(self.annotations_file)
             for line in tqdm(json_lines):
                 image_id = int(line['Flickr30K_ID'])
+
+                # finetue
+                if image_id not in self.images_dataset.imageid2filename:
+                        continue
                 hypothesis = str(line['sentence2'])
                 gold_label = self.cat2label[line['gold_label']]
 

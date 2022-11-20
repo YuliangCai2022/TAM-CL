@@ -1,0 +1,29 @@
+11/09/2022 23:43:11 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/09/2022 23:43:11 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+11/09/2022 23:43:11 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/09/2022 23:43:11 - INFO - __main__ - Training vilt model on task #1: VQAv2
+11/09/2022 23:43:12 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 train dataloader with batch size of 32
+11/09/2022 23:43:15 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 train dataset, with 443757 examples
+11/09/2022 23:43:15 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 val dataloader with batch size of 32
+11/09/2022 23:43:17 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 val dataset, with 214354 examples
+Training epoch 1:   0% 0/13868 [00:00<?, ?it/s]Training epoch 1:   0% 0/13868 [00:03<?, ?it/s]
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 288, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 213, in main
+    ewc=None)
+  File "./train/train_vqa.py", line 268, in train
+    loss, output, ewc_task, ewc_loss = self.train_step(model, batch, optimizer, scheduler, ewc)
+  File "./train/train_vqa.py", line 170, in train_step
+    loss = self.loss_criterion(logits, target) * target.shape[1]
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/loss.py", line 707, in forward
+    reduction=self.reduction)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/functional.py", line 2980, in binary_cross_entropy_with_logits
+    raise ValueError("Target size ({}) must be the same as input size ({})".format(target.size(), input.size()))
+ValueError: Target size (torch.Size([32, 3129])) must be the same as input size (torch.Size([768]))

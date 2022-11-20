@@ -9,7 +9,7 @@ import base64
 from tqdm import tqdm
 from collections import defaultdict
 import pickle as pkl
-
+from random import *
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -21,7 +21,7 @@ from image_utils import resize_image
 
 class Flickr30KImagesDataset(Dataset):
 
-    def __init__(self, flickr_dir: str, visual_input_type: str, image_size=(384,640)):
+    def __init__(self, flickr_dir: str, visual_input_type: str, image_size=(384,640),ft=False):
 
         '''
         Initializes a Flickr30KImagesDataset instance that handles image-side processing for SNLI-VE and other tasks that use Flickr images
@@ -34,10 +34,17 @@ class Flickr30KImagesDataset(Dataset):
         self.image_size = image_size
         self.visual_input_type = visual_input_type
         assert visual_input_type in ['pil-image', 'raw', 'fast-rcnn']
-
+        self.finetune=ft
         image_filenames = os.listdir(self.images_dir)
         self.imageid2filename = {}
         for fn in image_filenames:
+            prob = randint(1,100)
+            if self.finetune:
+                if prob > 10:
+                    continue
+            else:
+                if prob > 30:
+                    continue
             image_id = int(fn.strip('.jpg'))
             self.imageid2filename[image_id] = os.path.join(self.images_dir, fn)
         self.imageids = list(self.imageid2filename.keys())

@@ -1,0 +1,45 @@
+11/09/2022 13:43:57 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/09/2022 13:43:57 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+11/09/2022 13:43:57 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/09/2022 13:43:57 - INFO - __main__ - ********************** found the task token with same task key! *****************************
+11/09/2022 13:43:57 - INFO - __main__ - Training vilt model on task #1: NLVRv2
+11/09/2022 13:43:57 - INFO - data.visionlanguage_datasets.nlvr2_dataset - Creating NLVR2 train dataloader with batch size of 16
+11/09/2022 13:43:58 - INFO - data.visionlanguage_datasets.nlvr2_dataset - Loaded NLVRv2 train dataset, with 86372 examples
+11/09/2022 13:43:58 - INFO - data.visionlanguage_datasets.nlvr2_dataset - Creating NLVR2 val dataloader with batch size of 16
+11/09/2022 13:43:58 - INFO - data.visionlanguage_datasets.nlvr2_dataset - Loaded NLVRv2 val dataset, with 6982 examples
+Creating DyTox!
+n_examples is 86372
+n_examples is 6982
+Training epoch 1:   0% 0/5399 [00:00<?, ?it/s]Training epoch 1:   0% 0/5399 [00:06<?, ?it/s]
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 286, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 212, in main
+    ewc=None)
+  File "./train/train_nlvr2.py", line 240, in train
+    loss, output, ewc_task, ewc_loss = self.train_step(model, batch, optimizer, scheduler, ewc)
+  File "./train/train_nlvr2.py", line 130, in train_step
+    output = self.forward_pass(model, batch)
+  File "./train/train_nlvr2.py", line 104, in forward_pass
+    output = model(task_key='nlvr2', **inputs)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "./dytox.py", line 280, in forward
+    tokens, last_token, _ = self.forward_features(task_key, images=images, texts=texts)
+  File "./dytox.py", line 239, in forward_features
+    task_token, attn, v = self.tabs(torch.cat((task_token, vilt_output), dim=1), mask_heads=mask_heads)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "./TAB.py", line 123, in forward
+    xx = self.norm1(x)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/normalization.py", line 190, in forward
+    input, self.normalized_shape, self.weight, self.bias, self.eps)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/functional.py", line 2347, in layer_norm
+    return torch.layer_norm(input, normalized_shape, weight, bias, eps, torch.backends.cudnn.enabled)
+RuntimeError: Given normalized_shape=[768], expected input with shape [*, 768], but got input of size[16, 2, 1536]

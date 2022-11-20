@@ -72,7 +72,7 @@ class ClassAttention(nn.Module):
         B, N, C = x.shape
         # the x is 33,1,768, while 1,1,768 is class token
         #q = self.q(x[:,0]).unsqueeze(1).reshape(B, 1, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
-        q = self.q(x[0,:]).unsqueeze(1).reshape(1, 1, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
+        q = self.q(x[:,0]).unsqueeze(1).reshape(B, 1, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
         k = self.k(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
         q = q * self.scale

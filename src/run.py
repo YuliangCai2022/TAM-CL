@@ -31,6 +31,7 @@ from model_configs import model_configs, ALLOWED_CL_ENCODERS
 from task_configs import task_configs, SUPPORTED_VL_TASKS
 #from configs.adapter_configs import ADAPTER_MAP
 from wandb_config import wandb_config
+from dytox import update_dytox
 
 from seed_utils import set_seed
 from WandB import wandb_logger
@@ -96,6 +97,9 @@ def main():
     parser.add_argument("--do_wandb_logging", action='store_true',
                         help="Log experiments in W&B.")
 
+    parser.add_argument("--dytox", type=int, default = 1,
+                        help="whether to use dytox")
+
     args = parser.parse_args()
     args.ordered_cl_tasks = args.ordered_cl_tasks.split(',')
 
@@ -109,7 +113,7 @@ def main():
 
     '''**************************************************** load CL vilt model ****************************************************'''
     model_config = model_configs[args.encoder_name]
-    experiment_name = '{}-{}'.format(args.encoder_name, args.cl_algorithm)
+    experiment_name = '{}-{}_vqa_snli_1_1_onethirddata_dytox_correct_loss_ratio_vilt10layers_addviltkdloss_times1000000'.format(args.encoder_name, args.cl_algorithm)
     model = create_vilt_continual_learner_model(model_name_or_path=args.pretrained_model_name,
                                 ordered_cl_tasks=args.ordered_cl_tasks, 
                                 model_config=model_config, 
@@ -117,7 +121,7 @@ def main():
                                 device=device,
                                 use_TAB=args.task_attention)
     # free the bottom layers
-    model.vilt_encoder.freeze_bottom_k_layers(9)
+    model.vilt_encoder.freeze_bottom_k_layers(10)
     args.visual_input_type = model_config['visual_input_type']
     output_dir = os.path.join(args.output_dir, experiment_name)
     results_file = os.path.join(output_dir, 'results.json')
@@ -153,20 +157,29 @@ def main():
         logger.info("Training models on Vision-Language continual learning tasks...")
 
         num_task = 0
-
+        finetune = False
         for task_num, task_key in enumerate(args.ordered_cl_tasks):
-            num_task += 1
+
+            # under construction
+            if args.dytox:
+                model = update_dytox(model, num_task, args, teacher_model = teacher_model)
+
             logger.info("-"*100)
             task_name = task_configs[task_key]['task_name']
             task_output_dir = os.path.join(output_dir, 'checkpoints', 'task{}_{}'.format(task_num, task_key))
 
             # freeze the task_token for other tasks
-            for key in model.token_dict:
-                if key != task_key:
-                    model.token_dict[key].requires_grad=False
-                else:
-                    model.token_dict[key].requires_grad=True
-                    logger.info("********************** found the task token with same task key! *****************************")
+            if args.task_attention != 0:
+                sub_task_num = 0
+                for key in model.task_tokens:
+                    if sub_task_num != num_task :
+                        model.task_tokens[sub_task_num].requires_grad=False
+                    else:
+                        model.task_tokens[sub_task_num].requires_grad=True
+                        logger.info("********************** found the task token with same task key! *****************************")
+                    sub_task_num += 1
+
+            num_task += 1
 
             if os.path.isfile(os.path.join(task_output_dir, 'model')):
 
@@ -187,18 +200,50 @@ def main():
                 model.teacher_model = copy.deepcopy(model)
 
                 task_trainer_class = task_configs[task_key]['task_trainer']
-                task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, num_task)
+                task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, finetune, num_task)
 
             else:
 
                 #Create the Trainer method for the current CL task, and call the train method
                 logger.info("Training {} model on task #{}: {}".format(args.encoder_name, task_num+1, task_name))
                 task_trainer_class = task_configs[task_key]['task_trainer']
-                task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, num_task)
+                task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, finetune, num_task)
                 best_eval_score, best_model = task_trainer.train(model,
                                                                 replay_memory=None,
                                                                 ewc=None)
                 logger.info("Best {} evaluation score = {:.2f}, after epoch {}".format(task_name, best_eval_score, best_model['epoch']+1))
+
+                # update teacher_model
+                # teacher_model's techer model should be none or error occurs
+                model.teacher_model = None
+                teacher_model = copy.deepcopy(model)
+                if args.dytox:
+                    teacher_model.transformer.vilt_encoder.freeze_all_weights()
+                    for p in teacher_model.transformer.TAB.parameters():
+                        p.requires_grad = False
+                    for p in teacher_model.transformer.TAB.attn.parameters():
+                        p.requires_grad = False
+                    for p in teacher_model.transformer.TAB.mlp.parameters():
+                        p.requires_grad = False
+                    for p in teacher_model.head['vqa'].parameters():
+                        p.requires_grad = False
+                    i = 0
+                    for key in teacher_model.task_tokens:
+                        teacher_model.task_tokens[i].requires_grad=False
+                        i += 1
+                else:
+                    teacher_model.vilt_encoder.freeze_all_weights()
+                model.teacher_model = teacher_model
+                #if args.dytox:
+                    #    for p in model.transformer.TAB.parameters():
+                    #        p.requires_grad = False
+                    #    for p in model.transformer.TAB.attn.parameters():
+                    #        p.requires_grad = False
+                    #    for p in model.transformer.TAB.mlp.parameters():
+                    #        p.requires_grad = False
+                    #    for p in model.head['vqa'].parameters():
+                    #        p.requires_grad = False
+                    #model.transformer.vilt_encoder.freeze_all_weights()
 
                 # Save best model checkpoint, and separately save the models' Encoder object
                 logger.info("Saving best model and encoder checkpoint after {} training".format(task_name))
@@ -206,7 +251,13 @@ def main():
                     os.makedirs(task_output_dir)
                 best_task_model = best_model['model']
                 torch.save(best_task_model.state_dict(), os.path.join(task_output_dir, 'model'))
-                torch.save(best_task_model.get_encoder().state_dict(), os.path.join(task_output_dir, 'encoder'))
+                if args.dytox:
+                    if best_task_model.teacher_model != None:
+                        torch.save(best_task_model.teacher_model.state_dict(), os.path.join(task_output_dir, 'teacher_model'))
+                    torch.save(best_task_model.transformer.state_dict(), os.path.join(task_output_dir, 'transformer'))
+                    torch.save(best_task_model.transformer.get_encoder().state_dict(), os.path.join(task_output_dir, 'encoder'))
+                else:
+                    torch.save(best_task_model.get_encoder().state_dict(), os.path.join(task_output_dir, 'encoder'))
                 logger.info("Saved checkpoint!")
 
 
@@ -221,14 +272,112 @@ def main():
                 json.dump(results, open(results_file, 'w'))
                 logger.info("Saved continual learning results so far!")
 
-                teacher_model = copy.deepcopy(model)
-                teacher_model.vilt_encoder.freeze_all_weights()
-                model.teacher_model = teacher_model
+                
                 #for param in teacher_model.TAB:
                 #    param.requires_grad = False
             task_trainers[task_key] = task_trainer
 
 
+        #****************************************************************************************
+        #''''''''''''''''''''''''''''''Fine tune stage'''''''''''''''''''''''''''''''''
+        #''''''''''''''''''''''''''''''Fine tune stage'''''''''''''''''''''''''''''''''
+        #****************************************************************************************
+        # freeze the weight for the vilt part
+        if args.dytox == 3:
+            model.transformer.vilt_encoder.freeze_all_weights()
+            finetune = True
+            i = 0
+            num_task = 0
+            for task_num, task_key in enumerate(args.ordered_cl_tasks):
+                if i == 1:
+                    break
+                else:
+                    i += 1
+                logger.info("-"*100)
+                task_name = task_configs[task_key]['task_name']
+                task_output_dir = os.path.join(output_dir, 'checkpoints', 'task{}_{}'.format(task_num, task_key))
+
+                # freeze the task_token for other tasks
+                if args.task_attention != 0:
+                    sub_task_num = 0
+                    for key in model.task_tokens:
+                        if sub_task_num != num_task :
+                            model.task_tokens[sub_task_num].requires_grad=False
+                        else:
+                            model.task_tokens[sub_task_num].requires_grad=True
+                            logger.info("********************** found the task token with same task key! *****************************")
+                        sub_task_num += 1
+
+                num_task += 1
+
+                if False: #os.path.isfile(os.path.join(task_output_dir, 'model')):
+
+                    # If we find model checkpoint for this task, load the checkpoint and move onto next CL task
+                    logger.info("Found checkpoint for task {}!".format(task_name))
+                    try:
+                        model.load_state_dict(torch.load(os.path.join(task_output_dir, 'model')))
+                    except Exception as e:
+                        ckpt_state_dict = torch.load(os.path.join(task_output_dir, 'model'))
+                        initialized = {k: False for k in model.state_dict().keys()}
+                        for k in ckpt_state_dict.keys():
+                            model.state_dict()[k].copy_(ckpt_state_dict[k])
+                            initialized[k] = True
+                        logger.info("Uninitialized keys: {}".format(','.join([k for k in initialized.keys() if initialized[k] is False])))
+                        torch.save(model.state_dict(), os.path.join(task_output_dir, 'model'))
+                        logger.info("Saved model with uninitialized keys as new checkpoint")
+                    logger.info("Loaded model checkpoint from task {}! Moving on to next task...".format(task_name))
+                    model.teacher_model = copy.deepcopy(model)
+
+                    task_trainer_class = task_configs[task_key]['task_trainer']
+                    task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, finetune, num_task)
+
+                else:
+
+                    #Create the Trainer method for the current CL task, and call the train method
+                    logger.info("Training {} model on task #{}: {}".format(args.encoder_name, task_num+1, task_name))
+                    task_trainer_class = task_configs[task_key]['task_trainer']
+                    task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, finetune, num_task)
+                    best_model = task_trainer.train(model,
+                                                    replay_memory=None,
+                                                    ewc=None)
+                    
+
+                    # update teacher_model
+                    # teacher_model's techer model should be none or error occurs
+                    model.teacher_model = None
+                
+                    '''
+                    # Save best model checkpoint, and separately save the models' Encoder object
+                    logger.info("Saving best model and encoder checkpoint after {} training".format(task_name))
+                    if not os.path.isdir(task_output_dir):
+                        os.makedirs(task_output_dir)
+                    best_task_model = best_model['model']
+                    torch.save(best_task_model.state_dict(), os.path.join(task_output_dir, 'model'))
+                    if args.dytox:
+                        if best_task_model.teacher_model != None:
+                            torch.save(best_task_model.teacher_model.state_dict(), os.path.join(task_output_dir, 'teacher_model'))
+                        torch.save(best_task_model.transformer.state_dict(), os.path.join(task_output_dir, 'transformer'))
+                        torch.save(best_task_model.transformer.get_encoder().state_dict(), os.path.join(task_output_dir, 'encoder'))
+                    else:
+                        torch.save(best_task_model.get_encoder().state_dict(), os.path.join(task_output_dir, 'encoder'))
+                    logger.info("Saved checkpoint!")
+
+
+                    # Save CL results so far
+                    task_results = {
+                        'task_num': task_num,
+                        'task_key': task_key,
+                        'best_score': best_eval_score,
+                        'best_epoch': best_model['epoch']
+                    }
+                    results.append(task_results)
+                    json.dump(results, open(results_file, 'w'))
+                    logger.info("Saved continual learning results so far!")
+
+                    
+                    #for param in teacher_model.TAB:
+                    #    param.requires_grad = False
+                    '''
     '''****************************************************************** do evaluation ******************************************************************'''
     if args.do_eval:
 

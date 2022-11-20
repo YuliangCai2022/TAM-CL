@@ -1,0 +1,15 @@
+#! /bin/bash
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1:3
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16GB
+#SBATCH --time=48:00:00
+
+mamba init bash
+source ~/.bashrc
+
+conda activate climb
+
+sh vilt-snli.sh

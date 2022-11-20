@@ -1,0 +1,25 @@
+11/15/2022 15:46:30 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/15/2022 15:46:30 - INFO - __main__ - Cached results:
+11/15/2022 15:46:30 - INFO - __main__ - Task #1: VQAv2 - best score = 67.06
+11/15/2022 15:46:30 - INFO - __main__ - Task #2: SNLI-VE - best score = 75.29
+11/15/2022 15:46:30 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/15/2022 15:46:30 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+11/15/2022 15:46:30 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/15/2022 15:46:30 - INFO - __main__ - ********************** found the task token with same task key! *****************************
+11/15/2022 15:46:30 - INFO - __main__ - Found checkpoint for task VQAv2!
+11/15/2022 15:46:34 - INFO - __main__ - Loaded model checkpoint from task VQAv2! Moving on to next task...
+Creating DyTox!
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 391, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 203, in main
+    task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, finetune, num_task)
+  File "./train/train_vqa.py", line 73, in __init__
+    visual_input_type=args.visual_input_type,ft=False)
+  File "./data/image_datasets/cocoimages_dataset.py", line 39, in __init__
+    logger.info()
+TypeError: info() missing 1 required positional argument: 'msg'

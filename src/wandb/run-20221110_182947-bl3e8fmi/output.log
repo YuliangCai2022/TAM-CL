@@ -1,0 +1,30 @@
+11/10/2022 18:29:47 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/10/2022 18:29:47 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+11/10/2022 18:29:47 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/10/2022 18:29:47 - INFO - __main__ - Training vilt model on task #1: VQAv2
+11/10/2022 18:29:49 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 train dataloader with batch size of 32
+11/10/2022 18:29:51 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 train dataset, with 443757 examples
+11/10/2022 18:29:51 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 val dataloader with batch size of 32
+11/10/2022 18:29:52 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 val dataset, with 214354 examples
+Training epoch 1:   0% 0/13868 [00:00<?, ?it/s]Training epoch 1:   0% 1/13868 [00:01<5:40:56,  1.48s/it]Training epoch 1:   0% 2/13868 [00:01<3:11:26,  1.21it/s]Training epoch 1:   0% 3/13868 [00:02<2:34:42,  1.49it/s]Training epoch 1:   0% 4/13868 [00:02<2:09:16,  1.79it/s]Training epoch 1:   0% 5/13868 [00:03<2:02:42,  1.88it/s]Training epoch 1:   0% 6/13868 [00:03<1:51:58,  2.06it/s]Training epoch 1:   0% 7/13868 [00:04<2:03:58,  1.86it/s]Training epoch 1:   0% 8/13868 [00:04<1:52:46,  2.05it/s]Training epoch 1:   0% 9/13868 [00:05<1:47:34,  2.15it/s]Training epoch 1:   0% 10/13868 [00:05<1:40:01,  2.31it/s]Training epoch 1:   0% 10/13868 [00:06<2:27:51,  1.56it/s]
+Evaluating on VQA val set:   0% 0/6699 [00:00<?, ?it/s]Evaluating on VQA val set:   0% 1/6699 [00:00<1:51:17,  1.00it/s]Evaluating on VQA val set:   0% 2/6699 [00:01<1:10:41,  1.58it/s]Evaluating on VQA val set:   0% 3/6699 [00:01<58:09,  1.92it/s]  Evaluating on VQA val set:   0% 4/6699 [00:02<53:28,  2.09it/s]Evaluating on VQA val set:   0% 5/6699 [00:02<49:29,  2.25it/s]Evaluating on VQA val set:   0% 6/6699 [00:02<48:00,  2.32it/s]Evaluating on VQA val set:   0% 7/6699 [00:03<48:03,  2.32it/s]Evaluating on VQA val set:   0% 8/6699 [00:03<46:22,  2.40it/s]Evaluating on VQA val set:   0% 9/6699 [00:04<44:58,  2.48it/s]Evaluating on VQA val set:   0% 10/6699 [00:04<43:48,  2.54it/s]Evaluating on VQA val set:   0% 10/6699 [00:04<53:48,  2.07it/s]
+11/10/2022 18:30:07 - INFO - train.train_vqa - Evaluation after epoch 1: 0.00
+11/10/2022 18:30:07 - INFO - __main__ - Best VQAv2 evaluation score = 0.00, after epoch 1
+11/10/2022 18:30:07 - INFO - __main__ - Saving best model and encoder checkpoint after VQAv2 training
+11/10/2022 18:30:07 - INFO - __main__ - Saved checkpoint!
+11/10/2022 18:30:07 - INFO - __main__ - Saved continual learning results so far!
+11/10/2022 18:30:07 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/10/2022 18:30:07 - INFO - __main__ - Evaluating FORWARD TRANSFER of vilt model on vqa
+11/10/2022 18:30:07 - INFO - evaluate_cl_algorithm - ----------------------------------------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 294, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 264, in main
+    upstream_knowledge_dict = upstream_knowledge_transfer_eval(args, results_file)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/evaluate_cl_algorithm.py", line 57, in upstream_knowledge_transfer_eval
+    singletask_results = json.load(open(os.path.join(singletask_output_dir, 'results.json')))
+FileNotFoundError: [Errno 2] No such file or directory: '/project/rostamim_919/caiyulia/Multi-Dytox/output/vilt-singletask_ft-task0_vqa/results.json'

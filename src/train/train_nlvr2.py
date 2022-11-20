@@ -130,10 +130,9 @@ class NLVR2Trainer(TaskTrainer):
         output = self.forward_pass(model, batch)
         logits = None
         if self.args.task_attention:
-            logits = output[1].reshape(-1,2)
-            logits = logits[1:,:] # logtis size 16,2
+            logits = output['logits']
         else:
-            logits = output[1]
+            logits = output['logits']
         target = batch['labels'].to(self.device)
         loss = self.loss_criterion(logits, target)
 
@@ -146,8 +145,7 @@ class NLVR2Trainer(TaskTrainer):
             tau = 1
             old_inputs = self.batch2inputs_converter(batch)
             output_old = model.teacher_model(task_key='vqa',**old_inputs)
-            output_old = output_old[1].reshape(-1,2)
-            output_old = output_old[1:,:]
+            output_old = output_old['logits']
             kd_loss = 0
             _kd_loss = F.kl_div(
                     F.log_softmax(logits / tau, dim=1),
@@ -276,10 +274,8 @@ class NLVR2Trainer(TaskTrainer):
 
         for step, batch in enumerate(tqdm(self.nlvr_val_dataloader, desc='Evaluating on NLVR2 val set')):
             output = self.forward_pass(model, batch, do_eval=True)
-            logits = output[1]
-            if self.args.task_attention:
-                logits = logits.reshape(-1,2)
-                logits = logits[1:,:]
+            logits = output['logits']
+            
             batch_scores = (logits.argmax(-1).cpu() == batch['labels'])
             eval_score += batch_scores.sum().item()
 

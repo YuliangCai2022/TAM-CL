@@ -1,0 +1,23 @@
+11/09/2022 23:59:00 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/09/2022 23:59:00 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+11/09/2022 23:59:00 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/09/2022 23:59:00 - INFO - __main__ - Training vilt model on task #1: SNLI-VE
+11/09/2022 23:59:00 - INFO - data.visionlanguage_datasets.snli_ve_dataset - Creating SNLI-VE train dataloader with batch size of 32
+11/09/2022 23:59:02 - INFO - data.visionlanguage_datasets.snli_ve_dataset - Loaded SNLI-VE train dataset, with 529527 examples
+11/09/2022 23:59:02 - INFO - data.visionlanguage_datasets.snli_ve_dataset - Creating SNLI-VE dev dataloader with batch size of 32
+11/09/2022 23:59:02 - INFO - data.visionlanguage_datasets.snli_ve_dataset - Loaded SNLI-VE dev dataset, with 17858 examples
+Training epoch 1:   0% 0/16548 [00:00<?, ?it/s]Training epoch 1:   0% 0/16548 [00:04<?, ?it/s]
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 288, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 213, in main
+    ewc=None)
+  File "./train/train_snli_ve.py", line 235, in train
+    loss, output, ewc_task, ewc_loss = self.train_step(model, batch, optimizer, scheduler, ewc)
+  File "./train/train_snli_ve.py", line 136, in train_step
+    logits = output['logits']
+TypeError: tuple indices must be integers or slices, not str

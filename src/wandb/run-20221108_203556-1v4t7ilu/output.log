@@ -1,0 +1,15 @@
+11/08/2022 20:35:57 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/08/2022 20:35:57 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+Creating DyTox!
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 278, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 165, in main
+    model = update_dytox(model, num_task, args)
+  File "./dytox.py", line 296, in update_dytox
+    nb_classes=task_configs[args['ordered_cl_tasks']]['num_labels'],
+TypeError: 'Namespace' object is not subscriptable

@@ -1,0 +1,27 @@
+2022-11-16 17:29:08,241 DEBUG   MainThread:30933 [wandb_config.py:_load_defaults():154] no defaults not found in config-defaults.yaml
+2022-11-16 17:29:08,382 DEBUG   MainThread:30933 [run_manager.py:__init__():547] Initialized sync for Vilt-TAB/urrzuuon
+2022-11-16 17:29:08,399 INFO    MainThread:30933 [run_manager.py:wrap_existing_process():1149] wrapping existing process 30916
+2022-11-16 17:29:08,423 INFO    MainThread:30933 [run_manager.py:init_run():928] system metrics and metadata threads started
+2022-11-16 17:29:08,423 INFO    MainThread:30933 [run_manager.py:init_run():967] upserting run before process can begin, waiting at most 10 seconds
+2022-11-16 17:29:08,542 INFO    Thread-15 :30933 [run_manager.py:_upsert_run():1056] saving pip packages
+2022-11-16 17:29:08,554 INFO    Thread-15 :30933 [run_manager.py:_upsert_run():1058] initializing streaming files api
+2022-11-16 17:29:08,555 INFO    Thread-15 :30933 [run_manager.py:_upsert_run():1065] unblocking file change observer, beginning sync with W&B servers
+2022-11-16 17:29:08,556 INFO    MainThread:30933 [run_manager.py:wrap_existing_process():1166] informing user process we are ready to proceed
+2022-11-16 17:29:08,558 INFO    MainThread:30933 [run_manager.py:_sync_etc():1298] entering loop for messages from user process
+2022-11-16 17:29:09,353 INFO    Thread-4  :30933 [run_manager.py:_on_file_modified():692] file/dir modified: /project/rostamim_919/caiyulia/Multi-Dytox/src/wandb/run-20221116_172907-urrzuuon/config.yaml
+2022-11-16 17:29:09,460 INFO    Thread-4  :30933 [run_manager.py:_on_file_created():681] file/dir created: /project/rostamim_919/caiyulia/Multi-Dytox/src/wandb/run-20221116_172907-urrzuuon/requirements.txt
+2022-11-16 17:29:09,467 INFO    Thread-4  :30933 [run_manager.py:_on_file_created():681] file/dir created: /project/rostamim_919/caiyulia/Multi-Dytox/src/wandb/run-20221116_172907-urrzuuon/wandb-metadata.json
+2022-11-16 17:29:09,468 INFO    Thread-4  :30933 [run_manager.py:_on_file_created():681] file/dir created: /project/rostamim_919/caiyulia/Multi-Dytox/src/wandb/run-20221116_172907-urrzuuon/output.log
+2022-11-16 17:29:10,354 INFO    Thread-4  :30933 [run_manager.py:_on_file_modified():692] file/dir modified: /project/rostamim_919/caiyulia/Multi-Dytox/src/wandb/run-20221116_172907-urrzuuon/output.log
+2022-11-16 17:29:12,357 INFO    Thread-4  :30933 [run_manager.py:_on_file_modified():692] file/dir modified: /project/rostamim_919/caiyulia/Multi-Dytox/src/wandb/run-20221116_172907-urrzuuon/output.log
+2022-11-16 17:29:14,360 INFO    Thread-4  :30933 [run_manager.py:_on_file_modified():692] file/dir modified: /project/rostamim_919/caiyulia/Multi-Dytox/src/wandb/run-20221116_172907-urrzuuon/output.log
+2022-11-16 17:29:16,636 INFO    MainThread:30933 [run_manager.py:_sync_etc():1321] received message from user process: {"exitcode": 1}
+2022-11-16 17:29:16,636 INFO    MainThread:30933 [run_manager.py:_sync_etc():1408] closing log streams and sending exitcode to W&B
+2022-11-16 17:29:16,637 INFO    MainThread:30933 [run_manager.py:shutdown():1072] shutting down system stats and metadata service
+2022-11-16 17:29:17,365 INFO    Thread-4  :30933 [run_manager.py:_on_file_modified():692] file/dir modified: /project/rostamim_919/caiyulia/Multi-Dytox/src/wandb/run-20221116_172907-urrzuuon/output.log
+2022-11-16 17:29:17,366 INFO    Thread-4  :30933 [run_manager.py:_on_file_created():681] file/dir created: /project/rostamim_919/caiyulia/Multi-Dytox/src/wandb/run-20221116_172907-urrzuuon/wandb-events.jsonl
+2022-11-16 17:29:17,433 INFO    MainThread:30933 [run_manager.py:shutdown():1086] stopping streaming files and file change observer
+2022-11-16 17:29:18,367 INFO    Thread-4  :30933 [run_manager.py:_on_file_modified():692] file/dir modified: /project/rostamim_919/caiyulia/Multi-Dytox/src/wandb/run-20221116_172907-urrzuuon/wandb-metadata.json
+2022-11-16 17:29:19,545 INFO    MainThread:30933 [run_manager.py:_sync_etc():1420] process only ran for 11 seconds, not syncing files
+NFO    Thread-4  :30933 [urrzuuon:run_manager.py:_on_file_modified():692] file/dir modified: /project/rostamim_919/caiyulia/Multi-Dytox/src/wandb/run-20221116_172907-urrzuuon/wandb-metadata.json
+2022-11-16 17:29:19,545 INFO    MainThread:30933 [urrzuuon:run_manager.py:_sync_etc():1420] process only ran for 11 seconds, not syncing files

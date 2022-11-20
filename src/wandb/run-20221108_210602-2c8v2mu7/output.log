@@ -1,0 +1,30 @@
+11/08/2022 21:06:03 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/08/2022 21:06:03 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+11/08/2022 21:06:03 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/08/2022 21:06:03 - INFO - __main__ - Training vilt model on task #1: VQAv2
+11/08/2022 21:06:24 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 train dataloader with batch size of 32
+11/08/2022 21:06:27 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 train dataset, with 443757 examples
+11/08/2022 21:06:27 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 val dataloader with batch size of 32
+11/08/2022 21:06:29 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 val dataset, with 214354 examples
+Creating DyTox!
+Training epoch 1:   0% 0/13868 [00:00<?, ?it/s]Training epoch 1:   0% 0/13868 [00:05<?, ?it/s]
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 280, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 211, in main
+    ewc=None)
+  File "./train/train_vqa.py", line 268, in train
+    loss, output, ewc_task, ewc_loss = self.train_step(model, batch, optimizer, scheduler, ewc)
+  File "./train/train_vqa.py", line 159, in train_step
+    output = self.forward_pass(model, batch)
+  File "./train/train_vqa.py", line 137, in forward_pass
+    output = model(task_key='vqa', **inputs)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/module.py", line 1102, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "./dytox.py", line 274, in forward
+    tokens, last_token, _ = self.forward_features(x,inputs)
+NameError: name 'x' is not defined

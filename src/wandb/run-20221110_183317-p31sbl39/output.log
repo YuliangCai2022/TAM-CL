@@ -1,0 +1,30 @@
+11/10/2022 18:33:18 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/10/2022 18:33:18 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+11/10/2022 18:33:18 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/10/2022 18:33:18 - INFO - __main__ - Training vilt model on task #1: VQAv2
+11/10/2022 18:33:19 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 train dataloader with batch size of 32
+11/10/2022 18:33:22 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 train dataset, with 443757 examples
+11/10/2022 18:33:22 - INFO - data.visionlanguage_datasets.vqa_dataset - Creating VQAv2 val dataloader with batch size of 32
+11/10/2022 18:33:23 - INFO - data.visionlanguage_datasets.vqa_dataset - Loaded VQAv2 val dataset, with 214354 examples
+Training epoch 1:   0% 0/13868 [00:00<?, ?it/s]Training epoch 1:   0% 1/13868 [00:02<9:25:41,  2.45s/it]Training epoch 1:   0% 2/13868 [00:02<4:48:01,  1.25s/it]Training epoch 1:   0% 3/13868 [00:03<3:20:05,  1.15it/s]Training epoch 1:   0% 4/13868 [00:03<2:35:55,  1.48it/s]Training epoch 1:   0% 5/13868 [00:04<2:16:05,  1.70it/s]Training epoch 1:   0% 6/13868 [00:04<2:00:38,  1.91it/s]Training epoch 1:   0% 7/13868 [00:04<1:51:59,  2.06it/s]Training epoch 1:   0% 8/13868 [00:05<1:46:35,  2.17it/s]Training epoch 1:   0% 9/13868 [00:05<1:42:16,  2.26it/s]Training epoch 1:   0% 10/13868 [00:06<1:39:24,  2.32it/s]Training epoch 1:   0% 10/13868 [00:07<2:46:14,  1.39it/s]
+Evaluating on VQA val set:   0% 0/6699 [00:00<?, ?it/s]Evaluating on VQA val set:   0% 1/6699 [00:00<1:45:06,  1.06it/s]Evaluating on VQA val set:   0% 2/6699 [00:01<1:06:49,  1.67it/s]Evaluating on VQA val set:   0% 3/6699 [00:01<55:23,  2.01it/s]  Evaluating on VQA val set:   0% 4/6699 [00:02<52:48,  2.11it/s]Evaluating on VQA val set:   0% 5/6699 [00:02<49:42,  2.24it/s]Evaluating on VQA val set:   0% 6/6699 [00:02<46:30,  2.40it/s]Evaluating on VQA val set:   0% 7/6699 [00:03<46:18,  2.41it/s]Evaluating on VQA val set:   0% 8/6699 [00:03<44:37,  2.50it/s]Evaluating on VQA val set:   0% 9/6699 [00:04<43:47,  2.55it/s]Evaluating on VQA val set:   0% 10/6699 [00:04<42:42,  2.61it/s]Evaluating on VQA val set:   0% 10/6699 [00:04<50:19,  2.22it/s]
+11/10/2022 18:33:38 - INFO - train.train_vqa - Evaluation after epoch 1: 0.00
+11/10/2022 18:33:38 - INFO - __main__ - Best VQAv2 evaluation score = 0.00, after epoch 1
+11/10/2022 18:33:38 - INFO - __main__ - Saving best model and encoder checkpoint after VQAv2 training
+11/10/2022 18:33:39 - INFO - __main__ - Saved checkpoint!
+11/10/2022 18:33:39 - INFO - __main__ - Saved continual learning results so far!
+11/10/2022 18:33:39 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/10/2022 18:33:39 - INFO - __main__ - Evaluating FORWARD TRANSFER of vilt model on vqa
+11/10/2022 18:33:39 - INFO - evaluate_cl_algorithm - ----------------------------------------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 294, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 264, in main
+    upstream_knowledge_dict = upstream_knowledge_transfer_eval(args, results_file)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/evaluate_cl_algorithm.py", line 64, in upstream_knowledge_transfer_eval
+    relative_gain = 100.0*(cl_task_score - singletask_score)/(singletask_score - random_score)
+ZeroDivisionError: float division by zero

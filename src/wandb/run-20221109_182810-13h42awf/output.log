@@ -1,0 +1,24 @@
+11/09/2022 18:28:11 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/09/2022 18:28:11 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+11/09/2022 18:28:11 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/09/2022 18:28:11 - INFO - __main__ - ********************** found the task token with same task key! *****************************
+11/09/2022 18:28:11 - INFO - __main__ - Training vilt model on task #1: SNLI-VE
+11/09/2022 18:28:16 - INFO - data.visionlanguage_datasets.snli_ve_dataset - Creating SNLI-VE train dataloader with batch size of 32
+Creating DyTox!
+0it [00:00, ?it/s]1it [00:00,  7.74it/s]566it [00:00, 2707.41it/s]1687it [00:00, 4429.99it/s]4507it [00:00, 11375.63it/s]9067it [00:00, 17050.70it/s]11773it [00:00, 18974.43it/s]19772it [00:00, 34709.11it/s]28556it [00:01, 48936.75it/s]37220it [00:01, 59396.64it/s]46038it [00:01, 67564.96it/s]54888it [00:01, 73604.21it/s]62587it [00:01, 65178.74it/s]71452it [00:01, 71445.37it/s]80341it [00:01, 76260.52it/s]89267it [00:01, 79936.88it/s]98098it [00:01, 82344.53it/s]106508it [00:02, 68691.74it/s]115156it [00:02, 73253.85it/s]123903it [00:02, 77064.78it/s]132776it [00:02, 80294.32it/s]141743it [00:02, 82951.38it/s]150510it [00:02, 84309.99it/s]159088it [00:02, 68277.71it/s]168033it [00:02, 73599.14it/s]176948it [00:02, 77706.91it/s]185788it [00:03, 80635.71it/s]194594it [00:03, 82722.34it/s]203418it [00:03, 84302.61it/s]212391it [00:03, 85877.19it/s]221105it [00:03, 66533.23it/s]230023it [00:03, 72064.02it/s]238792it [00:03, 76104.33it/s]247709it [00:03, 79553.30it/s]256692it [00:03, 82407.67it/s]265580it [00:04, 84247.07it/s]274327it [00:04, 85175.86it/s]283143it [00:04, 86045.56it/s]292018it [00:04, 86840.80it/s]300784it [00:04, 63152.45it/s]309598it [00:04, 69015.30it/s]318536it [00:04, 74127.59it/s]327495it [00:04, 78208.11it/s]336430it [00:04, 81258.48it/s]345312it [00:05, 83381.81it/s]354243it [00:05, 85080.09it/s]363146it [00:05, 86226.36it/s]372109it [00:05, 87222.56it/s]380981it [00:05, 87664.09it/s]389891it [00:05, 88088.66it/s]398756it [00:05, 61741.10it/s]407699it [00:05, 68087.96it/s]416643it [00:06, 73354.04it/s]425493it [00:06, 77299.32it/s]434240it [00:06, 80057.63it/s]443093it [00:06, 82422.19it/s]451799it [00:06, 83741.95it/s]460556it [00:06, 84848.58it/s]469283it [00:06, 85554.49it/s]478280it [00:06, 86855.22it/s]487301it [00:06, 87847.64it/s]496150it [00:06, 88004.57it/s]505089it [00:07, 88407.71it/s]514199it [00:07, 89085.28it/s]523130it [00:07, 54934.04it/s]529527it [00:07, 70572.07it/s]
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 286, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 209, in main
+    task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, num_task)
+  File "./train/train_snli_ve.py", line 78, in __init__
+    visual_input_type=self.visual_input_type)
+  File "./data/visionlanguage_datasets/snli_ve_dataset.py", line 220, in build_snli_ve_dataloader
+    dataset = SnliVEDataset(data_dir, images_dataset, split, **kwargs)
+  File "./data/visionlanguage_datasets/snli_ve_dataset.py", line 93, in __init__
+    pkl.dump(self.data, open(self.cached_data_file, 'wb'))
+FileNotFoundError: [Errno 2] No such file or directory: '/project/rostamim_919/caiyulia/data/snli-ve/cached_ve_data/snli-ve_train.pkl'

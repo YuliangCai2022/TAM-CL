@@ -1,0 +1,16 @@
+11/08/2022 20:53:22 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+11/08/2022 20:53:22 - INFO - __main__ - Training models on Vision-Language continual learning tasks...
+11/08/2022 20:53:22 - INFO - __main__ - ----------------------------------------------------------------------------------------------------
+Creating DyTox!
+Traceback (most recent call last):
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 278, in <module>
+    main()
+  File "/project/rostamim_919/caiyulia/Multi-Dytox/src/run.py", line 173, in main
+    for key in model.token_dict:
+  File "/home1/caiyulia/.conda/envs/climb/lib/python3.6/site-packages/torch/nn/modules/module.py", line 1178, in __getattr__
+    type(self).__name__, name))
+AttributeError: 'DyTox' object has no attribute 'token_dict'

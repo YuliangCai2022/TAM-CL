@@ -41,6 +41,7 @@ class VQATrainer(TaskTrainer):
                  model_config: Dict, 
                  device: torch.device,
                  teacher_model: torch.nn.Module,
+                 ft: bool,
                  num_task: int):
 
         '''
@@ -60,7 +61,7 @@ class VQATrainer(TaskTrainer):
         self.vqa_config = task_configs['vqa']
         self.data_dir = os.path.join(args.climb_data_dir, self.vqa_config['data_dir'])
         self.num_task = num_task
-
+        self.finetune = ft
         # Model-specific stuff
         self.visual_input_type = model_config['visual_input_type']
         self.batch2inputs_converter = model_config['batch2inputs_converter']
@@ -69,19 +70,21 @@ class VQATrainer(TaskTrainer):
         images_source = self.vqa_config['images_source']
         mscoco_config = task_configs[images_source]
         self.images_dataset = MSCOCOImagesDataset(coco_dir=os.path.join(args.climb_data_dir, mscoco_config['data_dir']),
-                                                  visual_input_type=args.visual_input_type)
+                                                  visual_input_type=args.visual_input_type,ft=self.finetune)
 
         # Create dataloaders for training and validation
         self.vqa_train_dataloader = build_vqa_dataloader(args=args,
                                                     data_dir=self.data_dir,
                                                     images_dataset=self.images_dataset,
                                                     split='train',
+                                                    ft=self.finetune,
                                                     visual_input_type=self.visual_input_type)
 
         self.vqa_val_dataloader = build_vqa_dataloader(args=args,
                                                   data_dir=self.data_dir,
                                                   images_dataset=self.images_dataset,
                                                   split='val',
+                                                  ft=self.finetune,
                                                   visual_input_type=self.visual_input_type)
 
         # Training hyperparameters
@@ -102,10 +105,11 @@ class VQATrainer(TaskTrainer):
         Returns:
         scores: score of predicted answer (batch_size, num_answers)
         '''
-
         logits = torch.max(logits, 1)[1].data # argmax
+        #logits = logits[:32]
+        
         one_hots = torch.zeros(*labels.size()).to(self.device)
-
+        #logits = logits[:one_hots.shape[0]]
         #logger.info(logits)
         #print("logits shape is " + str(logits.shape))
         #print("one_hots shape is " + str(one_hots.shape))
@@ -160,8 +164,8 @@ class VQATrainer(TaskTrainer):
         logits = None
         #modiefied by Yuliang, ignore the task token in this loss
         if self.args.task_attention:
-            logits = output[1].reshape(-1,3129)
-            logits = logits[1:,:] # logtis size 32,3129
+            logits = output['logits']
+            #logits = logits[1:,:] # logtis size 32,3129
         else:
             logits = output[1]
 
@@ -171,23 +175,24 @@ class VQATrainer(TaskTrainer):
 
         #add by Yuliang call this only when have multitask
         # teacher model = model of previous task
-        if model.teacher_model != None and self.args.task_attention:
-            # get the output from the model of previous task
-            kd_loss = 0
-            tau = 5
-            old_inputs = self.batch2inputs_converter(batch)
-            output_old = model.teacher_model(task_key='vqa',**old_inputs)
-            output_old = output_old[1].reshape(-1,3129)
-            output_old = output_old[1:,:]
-            kd_loss = 0
-            _kd_loss = F.kl_div(
-                    F.log_softmax(logits / tau, dim=1),
-                    F.log_softmax(output_old / tau, dim=1),
-                    reduction='mean',
-                    log_target=True
-            ) * (tau ** 2)
-            kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
-            loss = kd_loss + (1-(self.num_task-1)/(self.num_task)) * loss
+        if self.args.task_attention and not self.finetune:
+            if model.teacher_model != None and self.args.task_attention:
+                # get the output from the model of previous task
+                kd_loss = 0
+                tau = 5
+                old_inputs = self.batch2inputs_converter(batch)
+                output_old = model.teacher_model(task_key='vqa',**old_inputs)
+                output_old = output_old['logits']
+                logits_kd = logits[:,:output_old.shape[1]]
+                kd_loss = 0
+                _kd_loss = F.kl_div(
+                        F.log_softmax(logits_kd / tau, dim=1),
+                        F.log_softmax(output_old / tau, dim=1),
+                        reduction='mean',
+                        log_target=True
+                ) * (tau ** 2)
+                kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
+                loss = kd_loss + (1-(self.num_task-1)/(self.num_task)) * loss
         
 
         if ewc is not None and ewc.do_ewc() is True:
@@ -208,7 +213,8 @@ class VQATrainer(TaskTrainer):
         return loss, output, ewc_task, ewc_loss
 
     def create_optimizer(self, model):
-
+        for name, param in model.named_parameters():
+            logger.info(name)
         no_decay = ['bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
             {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)], 'weight_decay': self.weight_decay},
@@ -256,15 +262,15 @@ class VQATrainer(TaskTrainer):
             'model': copy.deepcopy(model), #model.state_dict(),
             'optimizer_state': optimizer.state_dict()
         }
-
-        model.zero_grad()
+        if not self.finetune:
+            model.zero_grad()
         for epoch in range(self.num_epochs):
             # Training loop for epoch
-            
             
             model.train()
             for step, batch in enumerate(tqdm(self.vqa_train_dataloader, desc='Training epoch {}'.format(epoch+1))):
                 #print("batch size is " + str(batch.shape))
+                
                 loss, output, ewc_task, ewc_loss = self.train_step(model, batch, optimizer, scheduler, ewc)
               
                 if self.args.cl_algorithm == 'experience_replay' and do_replay is True:
@@ -281,7 +287,10 @@ class VQATrainer(TaskTrainer):
             #print(" the Q is " + str(model.TAB.attn.q.weight[0]))
             #print(" the token is " + str(model.task_token.data))
             # Do evaluation after epoch
-            eval_score = self.eval(model)
+            if not self.finetune:
+                eval_score = self.eval(model)
+            else: 
+                return None
             logger.info("Evaluation after epoch {}: {:.2f}".format(epoch+1, eval_score))
             wandb_logger.log({'vqa': {'val_score': eval_score}})
             if eval_score > best_score:
@@ -301,12 +310,15 @@ class VQATrainer(TaskTrainer):
         model.eval()
         eval_score = 0
         for step, batch in enumerate(tqdm(self.vqa_val_dataloader, desc='Evaluating on VQA val set')):
+           
             output = self.forward_pass(model, batch, do_eval=True)
-            logits = output[1]
+            if self.args.dytox:
+                logits = output['logits']
+            else:
+                logits = output[1]
             # add by Yuliang
-            if self.args.task_attention:
-                logits = logits.reshape(-1,3129)
-                logits = logits[1:,:]
+            #if self.args.task_attention:
+            #    logits = logits.reshape(-1,3129)
             target = batch['target_scores'].to(self.device)
             answer_scores = self.compute_score_with_logits(logits, target)
             batch_scores = torch.sum(answer_scores, 1)
