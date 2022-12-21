@@ -1,6 +1,12 @@
 import torch
 import torch.nn as nn
+import logging
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+        format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+        datefmt='%m/%d/%Y %H:%M:%S',
+        level=logging.INFO)
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0., fc=nn.Linear):
@@ -74,10 +80,8 @@ class ClassAttention(nn.Module):
         #q = self.q(x[:,0]).unsqueeze(1).reshape(B, 1, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
         q = self.q(x[:,0]).unsqueeze(1).reshape(B, 1, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
         k = self.k(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
-
         q = q * self.scale
         v = self.v(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
-
         attn = (q @ k.transpose(-2, -1))
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
@@ -87,7 +91,10 @@ class ClassAttention(nn.Module):
             attn = attn * mask_heads
 
         # modify from B, 1, C to B,C
-        x_cls = (attn @ v).transpose(1, 2).reshape(B,1, C)
+        x_cls = attn @ v
+        x_cls = x_cls.transpose(1, 2)
+
+        x_cls = x_cls.reshape(B,1, C)
         x_cls = self.proj(x_cls)
         x_cls = self.proj_drop(x_cls)
 

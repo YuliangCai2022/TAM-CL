@@ -69,20 +69,22 @@ class SNLIVETrainer(TaskTrainer):
         # Load Flickr30K Images dataset for image data backbone
         images_source = self.snli_ve_config['images_source']
         flickr30k_config = task_configs[images_source]
-        images_dataset = Flickr30KImagesDataset(os.path.join(args.climb_data_dir, flickr30k_config['data_dir']), 
+        self.image_dataset = Flickr30KImagesDataset(os.path.join(args.climb_data_dir, flickr30k_config['data_dir']), 
                          visual_input_type=self.visual_input_type)
+
+        self.train_sampler = torch.utils.data.distributed.DistributedSampler(self.image_dataset)
 
         # Create dataloaders for training and validation
         self.snli_ve_train_dataloader = build_snli_ve_dataloader(args=args,
                                                                  data_dir=self.data_dir,
-                                                                 images_dataset=images_dataset,
+                                                                 images_dataset=self.image_dataset,
                                                                  split='train',
                                                                  ft=self.finetune,
                                                                  visual_input_type=self.visual_input_type)
 
         self.snli_ve_dev_dataloader = build_snli_ve_dataloader(args=args,
                                                                data_dir=self.data_dir,
-                                                               images_dataset=images_dataset,
+                                                               images_dataset=self.image_dataset,
                                                                split='dev',
                                                                ft=self.finetune,
                                                                visual_input_type=self.visual_input_type)
@@ -147,12 +149,12 @@ class SNLIVETrainer(TaskTrainer):
         #add by Yuliang call this only when have multitask
         # teacher model = model of previous task
         if self.args.dytox != 0:
-            if model.teacher_model != None and self.args.task_attention:
+            if model.module.teacher_model != None and self.args.task_attention:
                 # get the output from the model of previous task
                 kd_loss = 0
                 tau = 5
                 old_inputs = self.batch2inputs_converter(batch)
-                output_old = model.teacher_model(task_key='vqa',**old_inputs)
+                output_old = model.module.teacher_model(task_key='vqa', teacher_key = 'snli-ve',**old_inputs)
                 output_old = output_old['logits']
                 logits_kd = logits[:,:output_old.shape[1]]
                 kd_loss = 0
@@ -170,8 +172,8 @@ class SNLIVETrainer(TaskTrainer):
                 # creating KD loss for vilt intermediate output
                 inputs = self.batch2inputs_converter(batch)
 
-                _,_,_,curr_vilt_output = model.forward_features(task_key='snli-ve', **inputs)
-                _,_,_,old_vilt_output = model.teacher_model.forward_features(task_key='vqa', **inputs)
+                _,_,_,curr_vilt_output,_ = model.forward_features(task_key='snli-ve', **inputs)
+                _,_,_,old_vilt_output,_ = model.teacher_model.forward_features(task_key='vqa', teacher_key = 'snli-ve', **inputs)
                 kd_loss_vilt = 0
                 tau = 1
                 _kd_loss_vilt = F.kl_div(
@@ -181,10 +183,9 @@ class SNLIVETrainer(TaskTrainer):
                         log_target=True
                 ) * (tau ** 2)
                 kd_loss_vilt += (self.num_task-1)/(self.num_task) * _kd_loss_vilt
-                logger.info("kd_loss_vilt is " + str(kd_loss_vilt))
-                loss = kd_loss_vilt * 1000000 + loss
+                loss = kd_loss_vilt * 10000 + loss
         
-            loss -= 0.1 * self.loss_criterion(model.task_tokens[0],model.task_tokens[1])
+            loss -= 0.1 * self.loss_criterion(model.module.task_tokens[0],model.module.task_tokens[1])
 
 
             
@@ -229,14 +230,16 @@ class SNLIVETrainer(TaskTrainer):
         best_score: Best validation SNLI-VE score
         best_model: Model checkpoint of best validation epoch
         '''
-
-        model.to(self.device)
+        #logger.info("in train before model to parallel")
+        #model.to(self.device)
+        #model = torch.nn.parallel.DistributedDataParallel(model, device_ids = [self.args.local_rank], output_device=[self.args.local_rank],find_unused_parameters=True)
+        logger.info("in train after model to parallel")
         if self.args.cl_algorithm == 'adapter':
             model.set_active_adapters("snli-ve")
         elif self.args.cl_algorithm == 'experience_replay':
             assert replay_memory is not None
             do_replay = replay_memory.do_replay()
-        elif self.args.cl_algorithm == 'ewc':
+        if ewc != None:
             assert ewc is not None
             do_ewc = ewc.do_ewc()
 

@@ -21,6 +21,7 @@ import torch
 from torch import nn
 from torch.optim import AdamW
 from transformers import get_polynomial_decay_schedule_with_warmup
+from torch.nn import functional as F
 
 from data.visionlanguage_datasets.vcr_dataset import build_vcr_dataloader
 from train.task_trainer import TaskTrainer
@@ -39,7 +40,10 @@ class VCRTrainer(TaskTrainer):
                  args: argparse.Namespace, 
                  task_configs: Dict, 
                  model_config: Dict, 
-                 device: torch.device):
+                 device: torch.device,
+                 teacher_model: torch.nn.Module,
+                 ft: bool,
+                 num_task: int):
         '''
         Initializes a Trainer that handles training of a model on the VCR task
 
@@ -53,11 +57,11 @@ class VCRTrainer(TaskTrainer):
 
         self.args = args
         self.device = device
-
+        self.finetune = ft
         self.vcr_config = task_configs['vcr']
         self.data_dir = os.path.join(args.climb_data_dir, self.vcr_config['data_dir'])
         self.task_type = self.vcr_config['task_type']
-
+        self.num_task = num_task
         # Model-specific stuff
         self.visual_input_type = model_config['visual_input_type']
         self.batch2inputs_converter = model_config['batch2inputs_converter']
@@ -125,9 +129,81 @@ class VCRTrainer(TaskTrainer):
         ''' 
 
         output = self.forward_pass(model, batch)
-        logits = output[1]
+        if self.args.dytox == 0:
+            '''
+            if (len(output[1].shape) == 3):
+                logits = torch.max(output[1],-1)[0]
+            else:
+                logits = output[1]
+            '''
+            logits = output[1]
+        else:
+            logits = output['logits']
+            
         target = batch['labels'].to(self.device)
-        loss = self.loss_criterion(logits, target)
+        #loss = self.loss_criterion(logits[:,3132:], target)
+
+        #loss = self.loss_criterion(logits[:,3132:], target)
+        if target.shape[0] == logits.shape[0]:
+            loss = self.loss_criterion(torch.max(logits,-1)[0].squeeze(), target)
+        #    #loss = self.loss_criterion(logits[:,:,-1], target)
+        #    #logger.info("logits shape is " + str(logits.shape))
+        #    loss = self.loss_criterion(logits[:,3132:], target)
+        else:
+            return 0,0,0,0
+
+        logger.info("loss is " + str(loss))
+        #add by Yuliang call this only when have multitask
+        # teacher model = model of previous task
+        
+        if self.args.dytox != 0:
+            if model.teacher_model != None and self.args.task_attention:
+                # get the output from the model of previous task
+                
+                kd_loss = 0
+                tau = 5
+                old_inputs = self.batch2inputs_converter(batch)
+                output_old = model.teacher_model(task_key='snli-ve', teacher_key = 'vcr', **old_inputs)
+                output_old = output_old['test']
+                #logger.info("output old shape is " + str(output_old.shape))
+                logits_kd = output['test'][:,:output_old.shape[1]]
+                #logits_kd = logits[0,:,:output_old.shape[2]]
+                #logits_kd = logits[:,:output_old.shape[1]]
+                #logger.info("logits kd shape is " + str(logits_kd.shape))
+                #output_old = output_old.reshape(output_old.shape[0]*output_old.shape[1],-1)
+                #logits_kd = logits_kd.reshape(logits_kd.shape[0]*logits_kd.shape[1],-1)
+                kd_loss = 0
+                _kd_loss = F.kl_div(
+                        F.log_softmax(logits_kd / tau, dim=1),
+                        F.log_softmax(output_old / tau, dim=1),
+                        reduction='mean',
+                        log_target=True
+                ) * (tau ** 2)
+                kd_loss += 0.5 * _kd_loss
+                logger.info("kd_loss is " + str(kd_loss))
+                loss = kd_loss * 20000 + 0.5 * loss
+
+                
+                # creating KD loss for vilt intermediate output
+                inputs = self.batch2inputs_converter(batch)
+
+                _,_,_,curr_vilt_output,_ = model.forward_features(task_key='vcr', **inputs)
+                _,_,_,old_vilt_output,_ = model.teacher_model.forward_features(task_key='snli-ve', teacher_key = 'vcr', **inputs)
+                #curr_vilt_output = curr_vilt_output.reshape(curr_vilt_output.shape[0]*curr_vilt_output.shape[1],-1)
+                #old_vilt_output = old_vilt_output.reshape(old_vilt_output.shape[0]*old_vilt_output.shape[1],-1)
+                kd_loss_vilt = 0
+                tau = 1
+                _kd_loss_vilt = F.kl_div(
+                        F.log_softmax(curr_vilt_output / tau, dim=2),
+                        F.log_softmax(old_vilt_output / tau, dim=2),
+                        reduction='mean',
+                        log_target=True
+                ) * (tau ** 2)
+                kd_loss_vilt += 0.5 * _kd_loss_vilt
+                logger.info('vKD loss is ' + str(kd_loss_vilt))
+                loss = kd_loss_vilt * 5000 + loss
+                loss -= 0.5 * self.loss_criterion(model.task_tokens[1],model.task_tokens[2])
+                
 
         if ewc is not None and ewc.do_ewc() is True:
             ewc_task, ewc_loss = ewc.compute_ewc_loss(model)
@@ -225,6 +301,8 @@ class VCRTrainer(TaskTrainer):
                 logger.info("New best evaluation score: {:.2f}".format(eval_score))
                 best_score = eval_score
                 best_model['epoch'] = epoch
+                model.teacher_model = None
+
                 best_model['model'] = copy.deepcopy(model)
 
         return best_score, best_model
@@ -242,8 +320,20 @@ class VCRTrainer(TaskTrainer):
         for step, batch in enumerate(tqdm(self.vcr_val_dataloader, desc='Evaluating on VCR val set')):
             output = self.forward_pass(model, batch, do_eval=True)
 
-            logits = output[1]
-            batch_scores = (logits.argmax(-1).cpu() == batch['labels'])
+            if self.args.dytox:
+                logits = output['logits']
+            else:
+                logits = output[1]
+
+            #logger.info("logits shape is " + str(logits.shape))
+            logger.info("logtis.argmax is " + str(logits[:,3132:].argmax(-1).cpu()))
+            logger.info("labels are " + str(batch['labels']))
+            if batch['labels'].shape[0] != 4:
+                logger.info("continue")
+                continue
+            #batch_scores = (torch.max(logits,-1)[0].squeeze().argmax(-1).cpu() == batch['labels'])
+            batch_scores = (logits[:,:,-1].argmax(-1).cpu() == batch['labels'])
+            #batch_scores = (logits[:,3132:].argmax(-1).cpu() == batch['labels'])
             eval_score += batch_scores.sum().item()
 
         eval_score = eval_score/len(self.vcr_val_dataloader.dataset)*100.0

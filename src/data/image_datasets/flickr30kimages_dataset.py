@@ -43,8 +43,9 @@ class Flickr30KImagesDataset(Dataset):
                 if prob > 10:
                     continue
             else:
-                if prob > 30:
+                if prob > 10:
                     continue
+                pass
             image_id = int(fn.strip('.jpg'))
             self.imageid2filename[image_id] = os.path.join(self.images_dir, fn)
         self.imageids = list(self.imageid2filename.keys())
@@ -56,6 +57,9 @@ class Flickr30KImagesDataset(Dataset):
         ])
 
         self.pil_transform = T.Resize(image_size)
+
+    def __len__(self):
+        return len(self.imageid2filename)
 
     def get_image_data(self, image_id: str):
 

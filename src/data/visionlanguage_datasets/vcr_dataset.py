@@ -95,14 +95,18 @@ class VCRDataset(Dataset):
         self.annotations_file = os.path.join(data_dir, 'annotation/{}.jsonl'.format(split))
 
         self.cached_data_file = os.path.join(data_dir, 'cached_vcr_data', 'vcr_'+ str(task_type) + '_' + '{}.pkl'.format(split))
-        if os.path.isfile(self.cached_data_file):
+        # use the small dataset so comment out this
+        if False: #os.path.isfile(self.cached_data_file):
             self.data = pkl.load(open(self.cached_data_file, 'rb'))
         else:
             self.data = []
             json_lines = jsonlines.open(self.annotations_file)
             count = 0
             for line in tqdm(json_lines):
-                
+                # take only small protion of dataset
+                prob = random.randint(1,100)
+                if prob > 10:
+                    continue
                 image_path = os.path.join('drawn_images/bbox/' + str(split) + '/' + str(task_type)+ '/' + str(line['annot_id']) +'.jpg')  ## train-0, train-1, train-2
                 multichoice_texts = []
                 objects = line['objects']   ### objects

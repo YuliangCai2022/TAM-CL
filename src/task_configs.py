@@ -86,7 +86,7 @@ vcr_config = {
         'model_type': 'multi-choice',
         'task_type': 'answer',
         'num_choices': 4,
-        'num_epochs': 10,
+        'num_epochs': 1, # 10
         'lr': 1e-4,
         'weight_decay': 1e-2,
         'adam_epsilon': 1e-8,

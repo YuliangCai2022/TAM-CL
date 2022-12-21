@@ -69,23 +69,27 @@ class VQATrainer(TaskTrainer):
         # Load COCO Images dataset for image data backbone
         images_source = self.vqa_config['images_source']
         mscoco_config = task_configs[images_source]
-        self.images_dataset = MSCOCOImagesDataset(coco_dir=os.path.join(args.climb_data_dir, mscoco_config['data_dir']),
+        self.image_dataset = MSCOCOImagesDataset(coco_dir=os.path.join(args.climb_data_dir, mscoco_config['data_dir']),
                                                   visual_input_type=args.visual_input_type,ft=self.finetune)
+
+        self.train_sampler = torch.utils.data.distributed.DistributedSampler(self.image_dataset)
 
         # Create dataloaders for training and validation
         self.vqa_train_dataloader = build_vqa_dataloader(args=args,
                                                     data_dir=self.data_dir,
-                                                    images_dataset=self.images_dataset,
+                                                    images_dataset=self.image_dataset,
                                                     split='train',
                                                     ft=self.finetune,
-                                                    visual_input_type=self.visual_input_type)
+                                                    visual_input_type=self.visual_input_type,
+                                                    sampler=self.train_sampler)
 
         self.vqa_val_dataloader = build_vqa_dataloader(args=args,
                                                   data_dir=self.data_dir,
-                                                  images_dataset=self.images_dataset,
+                                                  images_dataset=self.image_dataset,
                                                   split='val',
                                                   ft=self.finetune,
-                                                  visual_input_type=self.visual_input_type)
+                                                  visual_input_type=self.visual_input_type,
+                                                  sampler=self.train_sampler)
 
         # Training hyperparameters
         self.num_epochs = self.vqa_config['num_epochs']
@@ -176,12 +180,12 @@ class VQATrainer(TaskTrainer):
         #add by Yuliang call this only when have multitask
         # teacher model = model of previous task
         if self.args.task_attention and not self.finetune:
-            if model.teacher_model != None and self.args.task_attention:
+            if model.module.teacher_model != None and self.args.task_attention:
                 # get the output from the model of previous task
                 kd_loss = 0
                 tau = 5
                 old_inputs = self.batch2inputs_converter(batch)
-                output_old = model.teacher_model(task_key='vqa',**old_inputs)
+                output_old = model.module.teacher_model(task_key='vqa',**old_inputs)
                 output_old = output_old['logits']
                 logits_kd = logits[:,:output_old.shape[1]]
                 kd_loss = 0
@@ -213,8 +217,7 @@ class VQATrainer(TaskTrainer):
         return loss, output, ewc_task, ewc_loss
 
     def create_optimizer(self, model):
-        for name, param in model.named_parameters():
-            logger.info(name)
+        
         no_decay = ['bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
             {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)], 'weight_decay': self.weight_decay},
@@ -235,13 +238,14 @@ class VQATrainer(TaskTrainer):
         best_score: Best validation VQA score
         best_model: Model checkpoint of best validation epoch
         '''
-        model.to(self.device)
+        #model.to(self.device)
+        #model = torch.nn.parallel.DistributedDataParallel(model, device_ids = [self.args.local_rank], output_device=[self.args.local_rank],find_unused_parameters=True)
         if self.args.cl_algorithm == 'adapter':
             model.set_active_adapters("vqa")
         elif self.args.cl_algorithm == 'experience_replay':
             assert replay_memory is not None
             do_replay = replay_memory.do_replay()
-        elif self.args.cl_algorithm == 'ewc':
+        if ewc != None:
             assert ewc is not None
             do_ewc = ewc.do_ewc()
 
@@ -342,6 +346,7 @@ class VQATrainer(TaskTrainer):
 
         # Load model with encoder weights from encoder_path, and classifier weights from model_path
         model.teacher_model = None
+        logger.info('the model_path is ' + model_path)
         model.load_state_dict(torch.load(model_path))
         logger.info("Loaded model checkpoint from {}".format(model_path))
 

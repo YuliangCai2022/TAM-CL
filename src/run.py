@@ -25,6 +25,7 @@ from tqdm import tqdm
 #from modeling import load_encoder_map, create_continual_learner_map
 
 #from cl_algorithms import ExperienceReplayMemory, EWC
+from ewc import EWC
 from evaluate_cl_algorithm import upstream_knowledge_transfer_eval, catastrophic_forgetting_eval
 from vilt import create_vilt_continual_learner_model
 from model_configs import model_configs, ALLOWED_CL_ENCODERS
@@ -38,15 +39,15 @@ from WandB import wandb_logger
 
 logger = logging.getLogger(__name__)
 
-device = torch.device(
-        "cuda" if torch.cuda.is_available() else "cpu")
-
 
 def main():
-
+    num_of_gpus = torch.cuda.device_count()
+    logger.info(num_of_gpus)
 
     '''**************************************************************** Input parse *****************************************************************'''
     parser = argparse.ArgumentParser()
+
+    parser.add_argument("--local_rank", type=int)
 
     ## Required parameters
     # encoder is always vilt
@@ -100,10 +101,25 @@ def main():
     parser.add_argument("--dytox", type=int, default = 1,
                         help="whether to use dytox")
 
+    parser.add_argument("--ewc", type=int, default = 0,
+                        help="whether to use ewc")
+
     args = parser.parse_args()
     args.ordered_cl_tasks = args.ordered_cl_tasks.split(',')
 
 
+    # set GPU setting
+    torch.cuda.set_device(args.local_rank)
+    torch.distributed.init_process_group(
+        'nccl',
+        init_method='env://'
+    )
+    device = torch.device(f'cuda:{args.local_rank}')
+
+    #device = torch.device(
+    #    "cuda" if torch.cuda.is_available() else "cpu")
+
+    
     '''**************************************************** check if dataset load true ***********************************************'''
     if args.cl_algorithm == 'singletask_ft':
         assert len(args.ordered_cl_tasks) == 1
@@ -113,7 +129,7 @@ def main():
 
     '''**************************************************** load CL vilt model ****************************************************'''
     model_config = model_configs[args.encoder_name]
-    experiment_name = '{}-{}_vqa_snli_1_1_onethirddata_dytox_correct_loss_ratio_vilt10layers_addviltkdloss_times1000000'.format(args.encoder_name, args.cl_algorithm)
+    experiment_name = '{}-{}_vqa_snli_vcr_data_dytox_6ly_mixed_input_13'.format(args.encoder_name, args.cl_algorithm)
     model = create_vilt_continual_learner_model(model_name_or_path=args.pretrained_model_name,
                                 ordered_cl_tasks=args.ordered_cl_tasks, 
                                 model_config=model_config, 
@@ -121,13 +137,15 @@ def main():
                                 device=device,
                                 use_TAB=args.task_attention)
     # free the bottom layers
-    model.vilt_encoder.freeze_bottom_k_layers(10)
+    model.vilt_encoder.freeze_bottom_k_layers(6)
     args.visual_input_type = model_config['visual_input_type']
     output_dir = os.path.join(args.output_dir, experiment_name)
     results_file = os.path.join(output_dir, 'results.json')
     '''*************************************************** train the model **************************************************************'''
+    ewc = None
 
-
+    if args.ewc == 1:
+        ewc = EWC(args)
 
     if args.do_train:
 
@@ -163,6 +181,9 @@ def main():
             # under construction
             if args.dytox:
                 model = update_dytox(model, num_task, args, teacher_model = teacher_model)
+                model.to(device)
+                if task_num == 0:
+                    model = torch.nn.parallel.DistributedDataParallel(model, device_ids = [args.local_rank], output_device=[args.local_rank],find_unused_parameters=True)
 
             logger.info("-"*100)
             task_name = task_configs[task_key]['task_name']
@@ -171,11 +192,11 @@ def main():
             # freeze the task_token for other tasks
             if args.task_attention != 0:
                 sub_task_num = 0
-                for key in model.task_tokens:
+                for key in model.module.task_tokens:
                     if sub_task_num != num_task :
-                        model.task_tokens[sub_task_num].requires_grad=False
+                        model.module.task_tokens[sub_task_num].requires_grad=False
                     else:
-                        model.task_tokens[sub_task_num].requires_grad=True
+                        model.module.task_tokens[sub_task_num].requires_grad=True
                         logger.info("********************** found the task token with same task key! *****************************")
                     sub_task_num += 1
 
@@ -210,13 +231,13 @@ def main():
                 task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, finetune, num_task)
                 best_eval_score, best_model = task_trainer.train(model,
                                                                 replay_memory=None,
-                                                                ewc=None)
+                                                                ewc=ewc)
                 logger.info("Best {} evaluation score = {:.2f}, after epoch {}".format(task_name, best_eval_score, best_model['epoch']+1))
 
                 # update teacher_model
                 # teacher_model's techer model should be none or error occurs
                 model.teacher_model = None
-                teacher_model = copy.deepcopy(model)
+                teacher_model = copy.deepcopy(model.module)
                 if args.dytox:
                     teacher_model.transformer.vilt_encoder.freeze_all_weights()
                     for p in teacher_model.transformer.TAB.parameters():
@@ -249,7 +270,7 @@ def main():
                 logger.info("Saving best model and encoder checkpoint after {} training".format(task_name))
                 if not os.path.isdir(task_output_dir):
                     os.makedirs(task_output_dir)
-                best_task_model = best_model['model']
+                best_task_model = best_model['model'].module
                 torch.save(best_task_model.state_dict(), os.path.join(task_output_dir, 'model'))
                 if args.dytox:
                     if best_task_model.teacher_model != None:
@@ -276,7 +297,6 @@ def main():
                 #for param in teacher_model.TAB:
                 #    param.requires_grad = False
             task_trainers[task_key] = task_trainer
-
 
         #****************************************************************************************
         #''''''''''''''''''''''''''''''Fine tune stage'''''''''''''''''''''''''''''''''

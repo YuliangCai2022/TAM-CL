@@ -98,7 +98,8 @@ def catastrophic_forgetting_eval(args: argparse.Namespace, results_file: str, mo
     for task_num, task_key in enumerate(args.ordered_cl_tasks):
 
         task_name = task_configs[task_key]['task_name']
-        if task_num < 1:
+        # modifed for 3 tasks evaluatin, need to fix later!!!!!!
+        if task_num < 2:
             continue
         logger.info("Evaluating {} model using checkpoint after {} training, on previously-seen tasks {}".format(model_config['encoder_name'],
                                                                                                      task_name,

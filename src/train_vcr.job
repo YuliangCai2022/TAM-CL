@@ -1,6 +1,6 @@
 #! /bin/bash
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -12,4 +12,4 @@ source ~/.bashrc
 
 conda activate climb
 
-sh vilt-vqa_nlvr.sh
+sh vilt-vcr.sh

@@ -243,12 +243,12 @@ class ViltContinualLearner(ContinualLearner):
         elif task_config['model_type'] == 'multi-choice':
             clf_layer = nn.Sequential(
                             nn.Dropout(0.1),
-                            nn.Linear(self.encoder_dim, 1 + self.cumu_label)
+                            nn.Linear(self.encoder_dim, 4 + self.cumu_label)
                         )
             self.task_layer_dict[task_key] = clf_layer
             self.cumu_label += num_labels
 
-    def forward(self, task_key: str, images: List, texts: List[str]):
+    def forward(self, task_key: str, images: List, texts: List[str], teacher_key = None):
         '''
         Does forward pass of image and text inputs through model, 
         depending on if the task is multichoice or classification with one or more images
@@ -263,8 +263,11 @@ class ViltContinualLearner(ContinualLearner):
         '''
 
         # for now only modify the single image function for VQAV2
-
-        task_config = self.task_configs[task_key]
+        task_config = None
+        if teacher_key == None or teacher_key == 'snli-ve':
+            task_config = self.task_configs[task_key]
+        else:
+            task_config = self.task_configs[teacher_key]
         if task_config['model_type'] == 'multi-choice':
             return self.forward_multi_choice(task_key, images, texts, task_config['num_choices'])
         elif task_config['model_type'] == 'classification':
@@ -291,6 +294,7 @@ class ViltContinualLearner(ContinualLearner):
         # VQAv2 is trained here
         #if self.use_TAB:
         #    token = self.token_dict[task_key]
+
         encodings = self.vilt_encoder.process_inputs(images, texts)
 
         encoder_output = self.vilt_encoder(**encodings)
@@ -402,7 +406,12 @@ class ViltContinualLearner(ContinualLearner):
         #pooled_output = torch.cat(pooler_outputs, dim=-1) # [bs, 1536]
         pooled_output = torch.stack(pooler_outputs, dim=0).transpose(0, 1)
 
+        if self.use_TAB != 0:
+            return pooled_output
+
+
         output_logits = self.task_layer[task_key](pooled_output).squeeze()
+
         return pooled_output, output_logits
 
     def get_encoder(self):

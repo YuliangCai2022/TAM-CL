@@ -129,8 +129,8 @@ class NLVR2Trainer(TaskTrainer):
         #    logger.info("teacher_model is none")
         output = self.forward_pass(model, batch)
         logits = None
-        if self.args.task_attention:
-            logits = output['logits']
+        if self.args.dytox == 0:
+            logits = output[1]
         else:
             logits = output['logits']
         target = batch['labels'].to(self.device)
@@ -138,27 +138,28 @@ class NLVR2Trainer(TaskTrainer):
 
         #add by Yuliang call this only when have multitask
         # teacher model = model of previous task
-        if model.teacher_model != None and self.args.task_attention:
-            #logger.info("enter the KD loss")
-            # get the output from the model of previous task
-            kd_loss = 0
-            tau = 1
-            old_inputs = self.batch2inputs_converter(batch)
-            output_old = model.teacher_model(task_key='vqa',**old_inputs)
-            output_old = output_old['logits']
-            kd_loss = 0
-            _kd_loss = F.kl_div(
-                    F.log_softmax(logits / tau, dim=1),
-                    F.log_softmax(output_old / tau, dim=1),
-                    reduction='mean',
-                    log_target=True
-            ) * (tau ** 2)
-            kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
-            #logger.info("kd_loss: " + str(kd_loss) + "loss: " + str(loss))
-            #loss = kd_loss * 100 + (1-(self.num_task-1)/(self.num_task)) * loss
-            loss = 0.5 * kd_loss * 100000 + 0.5  * loss
-        else:
-            logger.info("not enter KD loss")
+        if self.args.dyotx != 0:
+            if model.module.teacher_model != None and self.args.task_attention:
+                #logger.info("enter the KD loss")
+                # get the output from the model of previous task
+                kd_loss = 0
+                tau = 1
+                old_inputs = self.batch2inputs_converter(batch)
+                output_old = model.teacher_model(task_key='snli-ve', teacher_key = 'nlvr',**old_inputs)
+                output_old = output_old['logits']
+                kd_loss = 0
+                _kd_loss = F.kl_div(
+                        F.log_softmax(logits / tau, dim=1),
+                        F.log_softmax(output_old / tau, dim=1),
+                        reduction='mean',
+                        log_target=True
+                ) * (tau ** 2)
+                kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
+                #logger.info("kd_loss: " + str(kd_loss) + "loss: " + str(loss))
+                #loss = kd_loss * 100 + (1-(self.num_task-1)/(self.num_task)) * loss
+                loss = 0.5 * kd_loss * 100000 + 0.5  * loss
+            else:
+                logger.info("not enter KD loss")
 
 
         if ewc is not None and ewc.do_ewc() is True:

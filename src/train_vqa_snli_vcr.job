@@ -12,4 +12,4 @@ source ~/.bashrc
 
 conda activate climb
 
-sh vilt-vqa_nlvr.sh
+sh vilt-vqa_snli_vcr.sh

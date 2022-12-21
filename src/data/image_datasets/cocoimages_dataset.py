@@ -51,14 +51,15 @@ class MSCOCOImagesDataset(Dataset):
                 if prob > 10:
                     continue
             else:
-                if prob > 30:
+                if prob > 10:
                     continue
+                pass
                
             fn_split = fn.split('_')[-1]
             image_id = int(fn_split.strip('.jpg'))
             self.imageid2filename[image_id] = os.path.join(self.images_dir, fn)
         self.imageids = list(set(list(self.imageid2filename.keys())))
-
+        
         self.raw_transform = T.Compose([
             T.Resize(image_size),
             T.ToTensor(),                                 # [0, 1]
@@ -67,6 +68,10 @@ class MSCOCOImagesDataset(Dataset):
 
         #self.pil_transform = T.Resize(image_size)
         self.pil_transform = T.Resize(size=384, max_size=640)
+
+
+    def __len__(self):
+        return len(self.imageid2filename)
 
     def get_image_data(self, image_id: str):
 

@@ -220,34 +220,85 @@ class DyTox(nn.Module):
         int_losses = {}
         return int_losses
 
-    def forward_features(self, task_key: str, images: List, texts: List[str]):
+    def forward_features(self, task_key: str, images: List, texts: List[str], teacher_key = None):
         # Shared part, this is the ENCODER
         B = len(images)
-
-        vilt_output = self.transformer(task_key=task_key, images=images, texts=texts)
-        vilt_output = vilt_output.reshape(vilt_output.shape[0],1,vilt_output.shape[1])
+        vilt_output = self.transformer(task_key=task_key, images=images, texts=texts, teacher_key = teacher_key)
+        
+        # VCR's data shape is 3 dim, no need to expand
+        if task_key != 'vcr' and teacher_key != 'vcr':
+            vilt_output = vilt_output.reshape(vilt_output.shape[0],1,vilt_output.shape[1])
+        else:
+            # for test experiment
+            #vilt_output = torch.mean(vilt_output,1).reshape(vilt_output.shape[0],1,-1)
+            #logger.info("viltoutput after mean shape is " + str(vilt_output.shape))
+            pass
         tokens = []
         attentions = []
         mask_heads = None
-        
+
+        # temperary build for test from here ****
+        test_output = []
+        test_tokens = nn.ParameterList()
         for task_token in self.task_tokens:
-            task_token = task_token.expand(B, -1, -1)
-            task_token_add = task_token
+            test_tokens.append(copy.deepcopy(task_token))
+        
+        if task_key != 'vcr' and teacher_key != 'vcr':
+        #if True:
+            for task_token in self.task_tokens:
+                task_token = task_token.expand(B, -1, -1)
+                task_token, attn, v = self.tabs(torch.cat((task_token, vilt_output), dim=1), mask_heads=mask_heads)
+                attentions.append(attn)
+                tokens.append(task_token[:, 0])
 
-            while task_token.shape[2] != vilt_output.shape[2]:
-                logger.info("task token shape and vilt output shape is not the same")
-                task_token=torch.cat((task_token,task_token_add), dim=2)
+        else:
+            count = 0
+            for task_token in self.task_tokens:
+                tokens_sub = []
+                for i in range(vilt_output.shape[1]):
+                    task_token = task_token.expand(B, -1, -1)
+                    task_token_add = task_token
 
-            task_token, attn, v = self.tabs(torch.cat((task_token, vilt_output), dim=1), mask_heads=mask_heads)
+                    #while task_token.shape[2] != vilt_output.shape[2]:
+                    #    logger.info("task token shape and vilt output shape is not the same")
+                    #    task_token=torch.cat((task_token,task_token_add), dim=2)
+                    if vilt_output.shape[1] != 1:
+                        task_token, attn, v = self.tabs(torch.cat((task_token, vilt_output[:,i,:].reshape(vilt_output.shape[0],1,-1)), dim=1), mask_heads=mask_heads)
+                    else:
+                        task_token, attn, v = self.tabs(torch.cat((task_token, vilt_output.reshape(vilt_output.shape[0],1,-1)), dim=1), mask_heads=mask_heads)
+
+                    attentions.append(attn)
+                    tokens_sub.append(task_token[:, 0])
+                if vilt_output.shape[0] == vilt_output.shape[1]:
+                    tokens.append(torch.stack(tokens_sub,0).transpose(0,1))
+                else:
+                    tokens.append(torch.stack(tokens_sub,0))
+                if teacher_key == 'snli-ve':
+                    if count == 1:
+                        break
+                count += 1
             
-            attentions.append(attn)
-            tokens.append(task_token[:, 0])
+            # temp test output *******
+            for task_token in test_tokens:
+                task_token = task_token.expand(B, -1, -1)
+                task_token, attn, v = self.tabs(torch.cat((task_token, vilt_output), dim=1), mask_heads=mask_heads)
+                test_output.append(task_token[:, 0])
+
+        #logger.info("token size is " + str(len(tokens)))
 
         self._class_tokens = tokens
-        return tokens, tokens[-1], attentions, vilt_output.reshape(vilt_output.shape[0],vilt_output.shape[2])
+
+        if task_key != 'vcr' and teacher_key != 'vcr':
+            vilt_output = vilt_output.reshape(vilt_output.shape[0],vilt_output.shape[2])
+
+        if len(test_output) == 0:
+            test_output= None
+
+        return tokens, tokens[-1], attentions, vilt_output, test_output
+        
 
 
-    def forward_classifier(self, task_key: str, tokens, last_token):
+    def forward_classifier(self, task_key: str, tokens, last_token, teacher_key, test_out = None):
         """Once all task embeddings e_1, ..., e_t are extracted, classify.
 
         Classifier has different mode based on a pattern x-y:
@@ -265,9 +316,13 @@ class DyTox(nn.Module):
         logits_div = None
         tasks = self.task_list
         logits = None
+        test_output = None
         for i in range(len(tokens)):
             if tasks[i] == task_key:
                 logits = self.head[tasks[i]](tokens[i]) ####!!!!!!!!remember to change there back to task_key!!!!!!!!!
+                if test_out != None:
+                    test_output = self.head[tasks[i]](test_out[i])
+                break
         #for logit in logits:
         #    logger.info(logit.shape)
         #logits = torch.cat(logits, dim=1)
@@ -276,12 +331,13 @@ class DyTox(nn.Module):
         return {
             'logits': logits,
             'div': logits_div,
-            'tokens': tokens
+            'tokens': tokens,
+            'test': test_output
         }
 
-    def forward(self, task_key: str, images: List, texts: List[str]):
-        tokens, last_token, _, _ = self.forward_features(task_key, images=images, texts=texts)
-        return self.forward_classifier(tokens = tokens, task_key = task_key, last_token = last_token)
+    def forward(self, task_key: str, images: List, texts: List[str], teacher_key = None):
+        tokens, last_token, _, _, test_output = self.forward_features(task_key, images=images, texts=texts, teacher_key = teacher_key)
+        return self.forward_classifier(tokens = tokens, task_key = task_key, last_token = last_token, teacher_key = teacher_key, test_out = test_output)
 
 
 def eval_training_finetuning(mode, in_ft):
@@ -310,6 +366,6 @@ def update_dytox(model, task_id, args, teacher_model):
         )
     else:
         # the num here is the output dim of current task's header
-        model.add_model(task_configs[args.ordered_cl_tasks[task_id]]['num_labels'])
+        model.module.add_model(task_configs[args.ordered_cl_tasks[task_id]]['num_labels'])
 
     return model
