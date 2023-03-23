@@ -54,7 +54,7 @@ class NLVR2Dataset(Dataset):
 
         # Load if cached data exist
         self.cached_data_file = os.path.join(data_dir, 'cached_nlvr2_data', f'{_split}.pkl')
-        if os.path.exists(self.cached_data_file): # modified by Yuliang
+        if False: #os.path.exists(self.cached_data_file): # modified by Yuliang
             with open(self.cached_data_file, 'rb') as f:
                 self.data = pickle.load(open(self.cached_data_file, 'rb'))
         else:
@@ -66,6 +66,10 @@ class NLVR2Dataset(Dataset):
             with jsonlines.open(annotations_file) as reader:
                 for annotation in reader:
                     # logger.info(annotation)
+                    #prob = random.randint(1,100)
+                    #if prob > 5:
+                    #    continue
+                        
                     i+= 1
                     #print(i)
                     example = {}

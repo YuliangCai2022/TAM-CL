@@ -153,8 +153,7 @@ class VCRTrainer(TaskTrainer):
             return 0,0,0,0
 
         logger.info("loss is " + str(loss))
-        #add by Yuliang call this only when have multitask
-        # teacher model = model of previous task
+       
         
         if self.args.dytox != 0:
             if model.teacher_model != None and self.args.task_attention:

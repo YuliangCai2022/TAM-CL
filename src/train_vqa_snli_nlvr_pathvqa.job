@@ -1,0 +1,15 @@
+#! /bin/bash
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:a100:1
+#SBATCH --exclusive
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=48:00:00
+
+mamba init bash
+source ~/.bashrc
+
+conda activate climb
+
+sh vilt-vqa_snli_nlvr_pathvqa.sh

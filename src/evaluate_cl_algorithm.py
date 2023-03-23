@@ -71,7 +71,7 @@ def upstream_knowledge_transfer_eval(args: argparse.Namespace, results_file: str
     return upstream_knowledge_transfer_dict
 
 
-def catastrophic_forgetting_eval(args: argparse.Namespace, results_file: str, model, task_trainers: List) -> Dict:
+def catastrophic_forgetting_eval(args: argparse.Namespace, results_file: str, model, task_trainers: List, total_task_num: int) -> Dict:
     '''
     For model checkpoint after each CL task, compute forgetting of previous CL tasks
 
@@ -89,7 +89,7 @@ def catastrophic_forgetting_eval(args: argparse.Namespace, results_file: str, mo
 
     # Load upstream learning results
     cl_results = json.load(open(results_file))
-    assert len(cl_results) == len(args.ordered_cl_tasks)
+    #assert len(cl_results) == len(args.ordered_cl_tasks)
     output_dir = os.path.dirname(results_file)
 
     logger.info("-"*100)
@@ -99,7 +99,7 @@ def catastrophic_forgetting_eval(args: argparse.Namespace, results_file: str, mo
 
         task_name = task_configs[task_key]['task_name']
         # modifed for 3 tasks evaluatin, need to fix later!!!!!!
-        if task_num < 2:
+        if task_num != total_task_num:
             continue
         logger.info("Evaluating {} model using checkpoint after {} training, on previously-seen tasks {}".format(model_config['encoder_name'],
                                                                                                      task_name,

@@ -42,10 +42,10 @@ class Flickr30KImagesDataset(Dataset):
             if self.finetune:
                 if prob > 10:
                     continue
-            else:
-                if prob > 10:
-                    continue
-                pass
+            #else:
+            #    if prob > 5:
+            #       continue
+            #    pass
             image_id = int(fn.strip('.jpg'))
             self.imageid2filename[image_id] = os.path.join(self.images_dir, fn)
         self.imageids = list(self.imageid2filename.keys())

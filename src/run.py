@@ -14,7 +14,6 @@ import yaml
 import pdb
 
 #sys.path.insert(0, '.')
-sys.path.insert(0, '/project/rostamim_919/caiyulia/Multi-Dytox/src/')
 
 import numpy as np
 import torch
@@ -26,6 +25,7 @@ from tqdm import tqdm
 
 #from cl_algorithms import ExperienceReplayMemory, EWC
 from ewc import EWC
+from experience_replay import ExperienceReplayMemory
 from evaluate_cl_algorithm import upstream_knowledge_transfer_eval, catastrophic_forgetting_eval
 from vilt import create_vilt_continual_learner_model
 from model_configs import model_configs, ALLOWED_CL_ENCODERS
@@ -104,20 +104,36 @@ def main():
     parser.add_argument("--ewc", type=int, default = 0,
                         help="whether to use ewc")
 
+    parser.add_argument("--parallel", type=int, default = 0,
+                        help="whether to use ewc")
+
+    parser.add_argument("--replay", type=int, default = 0,
+                        help="whether to use experience replay")
+
+    parser.add_argument("--memory_percentage", type=int, default = 0.01,
+                        help="whether to use experience replay")
+
+    parser.add_argument("--replay_frequency", type=int, default = 100,
+                        help="whether to use experience replay")
+
+    parser.add_argument("--memory_sampling_strategy", type=str, default = 'random', choices=['random', 'random-balanced'],
+                        help="Strategy for sampling memory buffer samples.")
+
     args = parser.parse_args()
     args.ordered_cl_tasks = args.ordered_cl_tasks.split(',')
 
-
+    
     # set GPU setting
-    torch.cuda.set_device(args.local_rank)
-    torch.distributed.init_process_group(
-        'nccl',
-        init_method='env://'
-    )
-    device = torch.device(f'cuda:{args.local_rank}')
-
-    #device = torch.device(
-    #    "cuda" if torch.cuda.is_available() else "cpu")
+    if args.parallel != 0:
+        torch.cuda.set_device(args.local_rank)
+        torch.distributed.init_process_group(
+            'nccl',
+            init_method='env://'
+        )
+        device = torch.device(f'cuda:{args.local_rank}')
+    else:
+        device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu")
 
     
     '''**************************************************** check if dataset load true ***********************************************'''
@@ -129,7 +145,10 @@ def main():
 
     '''**************************************************** load CL vilt model ****************************************************'''
     model_config = model_configs[args.encoder_name]
-    experiment_name = '{}-{}_vqa_snli_vcr_data_dytox_6ly_mixed_input_13'.format(args.encoder_name, args.cl_algorithm)
+    experiment_name = '{}-{}_coco_nlvr_path_snli_fulldata_smallepoch_TAMCL_singleGPU_regenerate_score'.format(args.encoder_name, args.cl_algorithm)
+    #experiment_name = 'b_snli_nlvr_coco_path_smallepoch_MKTox_test'
+
+    logger.info("the experiment name is" + experiment_name)
     model = create_vilt_continual_learner_model(model_name_or_path=args.pretrained_model_name,
                                 ordered_cl_tasks=args.ordered_cl_tasks, 
                                 model_config=model_config, 
@@ -146,6 +165,14 @@ def main():
 
     if args.ewc == 1:
         ewc = EWC(args)
+        logger.info("in the ewc mode")
+
+    replay_memory = None
+    if args.replay == 1:
+        replay_memory = ExperienceReplayMemory()
+        logger.info("in the replay mode")
+
+
 
     if args.do_train:
 
@@ -182,8 +209,13 @@ def main():
             if args.dytox:
                 model = update_dytox(model, num_task, args, teacher_model = teacher_model)
                 model.to(device)
-                if task_num == 0:
+                if task_num == 0 and args.parallel != 0:
                     model = torch.nn.parallel.DistributedDataParallel(model, device_ids = [args.local_rank], output_device=[args.local_rank],find_unused_parameters=True)
+            else:
+                model.to(device)
+                if task_num == 0 and args.parallel != 0:
+                    model = torch.nn.parallel.DistributedDataParallel(model, device_ids = [args.local_rank], output_device=[args.local_rank],find_unused_parameters=True)
+
 
             logger.info("-"*100)
             task_name = task_configs[task_key]['task_name']
@@ -192,13 +224,22 @@ def main():
             # freeze the task_token for other tasks
             if args.task_attention != 0:
                 sub_task_num = 0
-                for key in model.module.task_tokens:
-                    if sub_task_num != num_task :
-                        model.module.task_tokens[sub_task_num].requires_grad=False
-                    else:
-                        model.module.task_tokens[sub_task_num].requires_grad=True
-                        logger.info("********************** found the task token with same task key! *****************************")
-                    sub_task_num += 1
+                if args.parallel != 0:
+                    for key in model.module.task_tokens:
+                        if sub_task_num != num_task :
+                            model.module.task_tokens[sub_task_num].requires_grad=False
+                        else:
+                            model.module.task_tokens[sub_task_num].requires_grad=True
+                            logger.info("********************** found the task token with same task key! *****************************")
+                        sub_task_num += 1
+                else:
+                    for key in model.task_tokens:
+                        if sub_task_num != num_task :
+                            model.task_tokens[sub_task_num].requires_grad=False
+                        else:
+                            model.task_tokens[sub_task_num].requires_grad=True
+                            logger.info("********************** found the task token with same task key! *****************************")
+                        sub_task_num += 1
 
             num_task += 1
 
@@ -207,21 +248,70 @@ def main():
                 # If we find model checkpoint for this task, load the checkpoint and move onto next CL task
                 logger.info("Found checkpoint for task {}!".format(task_name))
                 try:
-                    model.load_state_dict(torch.load(os.path.join(task_output_dir, 'model')))
+                    if args.parallel != 0:
+                        model.module.load_state_dict(torch.load(os.path.join(task_output_dir, 'model')))
+                    else:
+                        model.load_state_dict(torch.load(os.path.join(task_output_dir, 'model')))
+
                 except Exception as e:
-                    ckpt_state_dict = torch.load(os.path.join(task_output_dir, 'model'))
-                    initialized = {k: False for k in model.state_dict().keys()}
-                    for k in ckpt_state_dict.keys():
-                        model.state_dict()[k].copy_(ckpt_state_dict[k])
-                        initialized[k] = True
-                    logger.info("Uninitialized keys: {}".format(','.join([k for k in initialized.keys() if initialized[k] is False])))
-                    torch.save(model.state_dict(), os.path.join(task_output_dir, 'model'))
-                    logger.info("Saved model with uninitialized keys as new checkpoint")
+                    if args.parallel != 0:
+                        ckpt_state_dict = torch.load(os.path.join(task_output_dir, 'model'))
+                        initialized = {k: False for k in model.module.state_dict().keys()}
+                        for k in ckpt_state_dict.keys():
+                            model.module.state_dict()[k].copy_(ckpt_state_dict[k])
+                            initialized[k] = True
+                        logger.info("Uninitialized keys: {}".format(','.join([k for k in initialized.keys() if initialized[k] is False])))
+                        torch.save(model.module.state_dict(), os.path.join(task_output_dir, 'model'))
+                        logger.info("Saved model with uninitialized keys as new checkpoint")
+                    else:
+                        ckpt_state_dict = torch.load(os.path.join(task_output_dir, 'model'))
+                        initialized = {k: False for k in model.state_dict().keys()}
+                        for k in ckpt_state_dict.keys():
+                            model.state_dict()[k].copy_(ckpt_state_dict[k])
+                            initialized[k] = True
+                        logger.info("Uninitialized keys: {}".format(','.join([k for k in initialized.keys() if initialized[k] is False])))
+                        torch.save(model.state_dict(), os.path.join(task_output_dir, 'model'))
+                        logger.info("Saved model with uninitialized keys as new checkpoint")
                 logger.info("Loaded model checkpoint from task {}! Moving on to next task...".format(task_name))
-                model.teacher_model = copy.deepcopy(model)
+
+                if args.parallel != 0:
+                    model.module.teacher_model = copy.deepcopy(model.module)
+                else:
+                    model.teacher_model = copy.deepcopy(model)
+                    if args.dytox:
+                        model.teacher_model.transformer.vilt_encoder.freeze_all_weights()
+                        for p in model.teacher_model.transformer.TAB.parameters():
+                            p.requires_grad = False
+                        for p in model.teacher_model.transformer.TAB.attn.parameters():
+                            p.requires_grad = False
+                        for p in model.teacher_model.transformer.TAB.mlp.parameters():
+                            p.requires_grad = False
+                        for p in model.teacher_model.head['cocoqa'].parameters():
+                            p.requires_grad = False
+                        for p in model.teacher_model.head['snli-ve'].parameters():
+                            p.requires_grad = False
+                        for p in model.teacher_model.head['pathvqa'].parameters():
+                            p.requires_grad = False
+                        for p in model.teacher_model.head['nlvr2'].parameters():
+                            p.requires_grad = False
+                        i = 0
+                        for key in model.teacher_model.task_tokens:
+                            model.teacher_model.task_tokens[i].requires_grad=False
+                            i += 1
+                    else:
+                        model.teacher_model.vilt_encoder.freeze_all_weights()
 
                 task_trainer_class = task_configs[task_key]['task_trainer']
                 task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, finetune, num_task)
+
+                if task_num == 3:
+                    logger.info("Evaluating CATASTROPHIC FORGETTING of {} model on {}".format(args.encoder_name, ' -> '.join(args.ordered_cl_tasks)))
+                    catastrophic_forgetting_dict = catastrophic_forgetting_eval(args, results_file, model, task_trainers, task_num)
+
+                    eval_results_file = os.path.join(output_dir, 'eval_results.json')
+                    eval_results = {'upstream_knowledge_transfer': None,
+                                    'forgetting': catastrophic_forgetting_dict}
+                    json.dump(eval_results, open(eval_results_file, 'w'))
 
             else:
 
@@ -230,14 +320,18 @@ def main():
                 task_trainer_class = task_configs[task_key]['task_trainer']
                 task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, finetune, num_task)
                 best_eval_score, best_model = task_trainer.train(model,
-                                                                replay_memory=None,
+                                                                replay_memory=replay_memory,
                                                                 ewc=ewc)
                 logger.info("Best {} evaluation score = {:.2f}, after epoch {}".format(task_name, best_eval_score, best_model['epoch']+1))
 
                 # update teacher_model
                 # teacher_model's techer model should be none or error occurs
-                model.teacher_model = None
-                teacher_model = copy.deepcopy(model.module)
+                if args.parallel != 0:
+                    model.module.teacher_model = None
+                    teacher_model = copy.deepcopy(model.module)
+                else:
+                    model.teacher_model = None
+                    teacher_model = copy.deepcopy(model)
                 if args.dytox:
                     teacher_model.transformer.vilt_encoder.freeze_all_weights()
                     for p in teacher_model.transformer.TAB.parameters():
@@ -246,7 +340,13 @@ def main():
                         p.requires_grad = False
                     for p in teacher_model.transformer.TAB.mlp.parameters():
                         p.requires_grad = False
-                    for p in teacher_model.head['vqa'].parameters():
+                    for p in teacher_model.head['cocoqa'].parameters():
+                        p.requires_grad = False
+                    for p in teacher_model.head['snli-ve'].parameters():
+                        p.requires_grad = False
+                    for p in teacher_model.head['pathvqa'].parameters():
+                        p.requires_grad = False
+                    for p in teacher_model.head['nlvr2'].parameters():
                         p.requires_grad = False
                     i = 0
                     for key in teacher_model.task_tokens:
@@ -254,23 +354,21 @@ def main():
                         i += 1
                 else:
                     teacher_model.vilt_encoder.freeze_all_weights()
-                model.teacher_model = teacher_model
-                #if args.dytox:
-                    #    for p in model.transformer.TAB.parameters():
-                    #        p.requires_grad = False
-                    #    for p in model.transformer.TAB.attn.parameters():
-                    #        p.requires_grad = False
-                    #    for p in model.transformer.TAB.mlp.parameters():
-                    #        p.requires_grad = False
-                    #    for p in model.head['vqa'].parameters():
-                    #        p.requires_grad = False
-                    #model.transformer.vilt_encoder.freeze_all_weights()
+
+                if args.parallel != 0:
+                    model.module.teacher_model = teacher_model
+                else:
+                    model.teacher_model = teacher_model
 
                 # Save best model checkpoint, and separately save the models' Encoder object
                 logger.info("Saving best model and encoder checkpoint after {} training".format(task_name))
                 if not os.path.isdir(task_output_dir):
                     os.makedirs(task_output_dir)
-                best_task_model = best_model['model'].module
+                if args.parallel != 0:
+                    best_task_model = best_model['model'].module
+                else:
+                    best_task_model = best_model['model']
+
                 torch.save(best_task_model.state_dict(), os.path.join(task_output_dir, 'model'))
                 if args.dytox:
                     if best_task_model.teacher_model != None:
@@ -279,8 +377,7 @@ def main():
                     torch.save(best_task_model.transformer.get_encoder().state_dict(), os.path.join(task_output_dir, 'encoder'))
                 else:
                     torch.save(best_task_model.get_encoder().state_dict(), os.path.join(task_output_dir, 'encoder'))
-                logger.info("Saved checkpoint!")
-
+                logger.info("Saved checkpoint!")          
 
                 # Save CL results so far
                 task_results = {
@@ -293,111 +390,27 @@ def main():
                 json.dump(results, open(results_file, 'w'))
                 logger.info("Saved continual learning results so far!")
 
-                
-                #for param in teacher_model.TAB:
-                #    param.requires_grad = False
             task_trainers[task_key] = task_trainer
 
-        #****************************************************************************************
-        #''''''''''''''''''''''''''''''Fine tune stage'''''''''''''''''''''''''''''''''
-        #''''''''''''''''''''''''''''''Fine tune stage'''''''''''''''''''''''''''''''''
-        #****************************************************************************************
-        # freeze the weight for the vilt part
-        if args.dytox == 3:
-            model.transformer.vilt_encoder.freeze_all_weights()
-            finetune = True
-            i = 0
-            num_task = 0
-            for task_num, task_key in enumerate(args.ordered_cl_tasks):
-                if i == 1:
-                    break
-                else:
-                    i += 1
-                logger.info("-"*100)
-                task_name = task_configs[task_key]['task_name']
-                task_output_dir = os.path.join(output_dir, 'checkpoints', 'task{}_{}'.format(task_num, task_key))
+            if args.replay == 1:
+            # If doing experience replay, create memory buffer for current task
+                replay_memory.add_task_memory_buffer(args=args,
+                                                task_key=task_key,
+                                                task_config=task_configs[task_key],
+                                                task_trainer=task_trainer,
+                                                memory_percentage=args.memory_percentage,
+                                                sampling_strategy=args.memory_sampling_strategy)
 
-                # freeze the task_token for other tasks
-                if args.task_attention != 0:
-                    sub_task_num = 0
-                    for key in model.task_tokens:
-                        if sub_task_num != num_task :
-                            model.task_tokens[sub_task_num].requires_grad=False
-                        else:
-                            model.task_tokens[sub_task_num].requires_grad=True
-                            logger.info("********************** found the task token with same task key! *****************************")
-                        sub_task_num += 1
+            # evaluate after each task
+            #if task_num == 2:
+            logger.info("Evaluating CATASTROPHIC FORGETTING of {} model on {}".format(args.encoder_name, ' -> '.join(args.ordered_cl_tasks)))
+            catastrophic_forgetting_dict = catastrophic_forgetting_eval(args, results_file, model, task_trainers, task_num)
 
-                num_task += 1
-
-                if False: #os.path.isfile(os.path.join(task_output_dir, 'model')):
-
-                    # If we find model checkpoint for this task, load the checkpoint and move onto next CL task
-                    logger.info("Found checkpoint for task {}!".format(task_name))
-                    try:
-                        model.load_state_dict(torch.load(os.path.join(task_output_dir, 'model')))
-                    except Exception as e:
-                        ckpt_state_dict = torch.load(os.path.join(task_output_dir, 'model'))
-                        initialized = {k: False for k in model.state_dict().keys()}
-                        for k in ckpt_state_dict.keys():
-                            model.state_dict()[k].copy_(ckpt_state_dict[k])
-                            initialized[k] = True
-                        logger.info("Uninitialized keys: {}".format(','.join([k for k in initialized.keys() if initialized[k] is False])))
-                        torch.save(model.state_dict(), os.path.join(task_output_dir, 'model'))
-                        logger.info("Saved model with uninitialized keys as new checkpoint")
-                    logger.info("Loaded model checkpoint from task {}! Moving on to next task...".format(task_name))
-                    model.teacher_model = copy.deepcopy(model)
-
-                    task_trainer_class = task_configs[task_key]['task_trainer']
-                    task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, finetune, num_task)
-
-                else:
-
-                    #Create the Trainer method for the current CL task, and call the train method
-                    logger.info("Training {} model on task #{}: {}".format(args.encoder_name, task_num+1, task_name))
-                    task_trainer_class = task_configs[task_key]['task_trainer']
-                    task_trainer = task_trainer_class(args, task_configs, model_config, device, teacher_model, finetune, num_task)
-                    best_model = task_trainer.train(model,
-                                                    replay_memory=None,
-                                                    ewc=None)
-                    
-
-                    # update teacher_model
-                    # teacher_model's techer model should be none or error occurs
-                    model.teacher_model = None
-                
-                    '''
-                    # Save best model checkpoint, and separately save the models' Encoder object
-                    logger.info("Saving best model and encoder checkpoint after {} training".format(task_name))
-                    if not os.path.isdir(task_output_dir):
-                        os.makedirs(task_output_dir)
-                    best_task_model = best_model['model']
-                    torch.save(best_task_model.state_dict(), os.path.join(task_output_dir, 'model'))
-                    if args.dytox:
-                        if best_task_model.teacher_model != None:
-                            torch.save(best_task_model.teacher_model.state_dict(), os.path.join(task_output_dir, 'teacher_model'))
-                        torch.save(best_task_model.transformer.state_dict(), os.path.join(task_output_dir, 'transformer'))
-                        torch.save(best_task_model.transformer.get_encoder().state_dict(), os.path.join(task_output_dir, 'encoder'))
-                    else:
-                        torch.save(best_task_model.get_encoder().state_dict(), os.path.join(task_output_dir, 'encoder'))
-                    logger.info("Saved checkpoint!")
-
-
-                    # Save CL results so far
-                    task_results = {
-                        'task_num': task_num,
-                        'task_key': task_key,
-                        'best_score': best_eval_score,
-                        'best_epoch': best_model['epoch']
-                    }
-                    results.append(task_results)
-                    json.dump(results, open(results_file, 'w'))
-                    logger.info("Saved continual learning results so far!")
-
-                    
-                    #for param in teacher_model.TAB:
-                    #    param.requires_grad = False
-                    '''
+            eval_results_file = os.path.join(output_dir, 'eval_results.json')
+            eval_results = {'upstream_knowledge_transfer': None,
+                            'forgetting': catastrophic_forgetting_dict}
+            json.dump(eval_results, open(eval_results_file, 'w'))
+    
     '''****************************************************************** do evaluation ******************************************************************'''
     if args.do_eval:
 
@@ -424,13 +437,13 @@ def main():
                 assert task_key in task_trainers.keys()
 
         # Run the forgetting evaluation, and save results to file
-        logger.info("Evaluating CATASTROPHIC FORGETTING of {} model on {}".format(args.encoder_name, ' -> '.join(args.ordered_cl_tasks)))
+        '''logger.info("Evaluating CATASTROPHIC FORGETTING of {} model on {}".format(args.encoder_name, ' -> '.join(args.ordered_cl_tasks)))
         catastrophic_forgetting_dict = catastrophic_forgetting_eval(args, results_file, model, task_trainers)
 
         eval_results_file = os.path.join(output_dir, 'eval_results.json')
         eval_results = {'upstream_knowledge_transfer': upstream_knowledge_dict,
                         'forgetting': catastrophic_forgetting_dict}
-        json.dump(eval_results, open(eval_results_file, 'w'))
+        json.dump(eval_results, open(eval_results_file, 'w'))'''
 
         logger.info("-"*100)
 

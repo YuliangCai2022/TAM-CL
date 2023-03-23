@@ -72,7 +72,10 @@ class VQATrainer(TaskTrainer):
         self.image_dataset = MSCOCOImagesDataset(coco_dir=os.path.join(args.climb_data_dir, mscoco_config['data_dir']),
                                                   visual_input_type=args.visual_input_type,ft=self.finetune)
 
-        self.train_sampler = torch.utils.data.distributed.DistributedSampler(self.image_dataset)
+        if self.args.parallel != 0:
+            self.train_sampler = torch.utils.data.distributed.DistributedSampler(self.image_dataset)
+        else:
+            self.train_sampler = None
 
         # Create dataloaders for training and validation
         self.vqa_train_dataloader = build_vqa_dataloader(args=args,
@@ -109,6 +112,8 @@ class VQATrainer(TaskTrainer):
         Returns:
         scores: score of predicted answer (batch_size, num_answers)
         '''
+        #if self.args.dytox:
+        #    logits = logits[:,4092:]
         logits = torch.max(logits, 1)[1].data # argmax
         #logits = logits[:32]
         
@@ -117,7 +122,6 @@ class VQATrainer(TaskTrainer):
         #logger.info(logits)
         #print("logits shape is " + str(logits.shape))
         #print("one_hots shape is " + str(one_hots.shape))
-        # modified by Yuliang, previous logits.view(-1,1)
         if self.args.task_attention:
             one_hots.scatter_(1, logits.view(-1,1), 1)
         else:
@@ -143,7 +147,7 @@ class VQATrainer(TaskTrainer):
                 output = model(task_key='vqa', **inputs)
         else:
             output = model(task_key='vqa', **inputs)
-        return output
+        return output, inputs
 
     def train_step(self, model, batch: Dict, optimizer=None, scheduler=None, ewc=None):
 
@@ -164,40 +168,93 @@ class VQATrainer(TaskTrainer):
         ewc_loss
         '''
 
-        output = self.forward_pass(model, batch)
+        output, batch_inputs = self.forward_pass(model, batch)
         logits = None
-        #modiefied by Yuliang, ignore the task token in this loss
-        if self.args.task_attention:
-            logits = output['logits']
-            #logits = logits[1:,:] # logtis size 32,3129
-        else:
+        if self.args.dytox == 0:
             logits = output[1]
-
-
+        else:
+            logits = output['logits']
         target = batch['target_scores'].to(self.device)
+        #if self.args.dytox:
+        #    loss = self.loss_criterion(logits[:,4092:], target) * target.shape[1]
+        #else:
         loss = self.loss_criterion(logits, target) * target.shape[1]
 
-        #add by Yuliang call this only when have multitask
+
         # teacher model = model of previous task
-        if self.args.task_attention and not self.finetune:
-            if model.module.teacher_model != None and self.args.task_attention:
-                # get the output from the model of previous task
-                kd_loss = 0
-                tau = 5
-                old_inputs = self.batch2inputs_converter(batch)
-                output_old = model.module.teacher_model(task_key='vqa',**old_inputs)
-                output_old = output_old['logits']
-                logits_kd = logits[:,:output_old.shape[1]]
-                kd_loss = 0
-                _kd_loss = F.kl_div(
-                        F.log_softmax(logits_kd / tau, dim=1),
-                        F.log_softmax(output_old / tau, dim=1),
-                        reduction='mean',
-                        log_target=True
-                ) * (tau ** 2)
-                kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
-                loss = kd_loss + (1-(self.num_task-1)/(self.num_task)) * loss
-        
+        if self.args.parallel != 0:
+            if self.args.task_attention and not self.finetune:
+                if model.module.teacher_model != None and self.args.task_attention:
+                    # get the output from the model of previous task
+                    kd_loss = 0
+                    tau = 5
+                    old_inputs = self.batch2inputs_converter(batch)
+                    output_old = model.module.teacher_model(task_key='pathvqa',**old_inputs)
+                    output_old = output_old['logits']
+                    logits_kd = logits[:,:output_old.shape[1]]
+                    kd_loss = 0
+                    _kd_loss = F.kl_div(
+                            F.log_softmax(logits_kd / tau, dim=1),
+                            F.log_softmax(output_old / tau, dim=1),
+                            reduction='mean',
+                            log_target=True
+                    ) * (tau ** 2)
+                    kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
+                    loss = kd_loss + 20000 * (1-(self.num_task-1)/(self.num_task)) * loss
+
+                    curr_vilt_output = output['v_output']
+                    old_vilt_output = output_old_origin['v_output']
+                    kd_loss_vilt = 0
+                    tau = 1
+                    _kd_loss_vilt = F.kl_div(
+                            F.log_softmax(curr_vilt_output / tau, dim=1),
+                            F.log_softmax(old_vilt_output / tau, dim=1),
+                            reduction='mean',
+                            log_target=True
+                    ) * (tau ** 2)
+                    kd_loss_vilt += (self.num_task-1)/(self.num_task) * _kd_loss_vilt
+                    loss = kd_loss_vilt * 10000 + loss
+
+                    loss -= 0.1 * self.loss_criterion(model.module.task_tokens[0],model.module.task_tokens[1])
+
+        else:
+            if self.args.task_attention and not self.finetune:
+                if model.teacher_model != None and self.args.task_attention:
+                    # get the output from the model of previous task
+                    kd_loss = 0
+                    tau = 5
+                    old_inputs = self.batch2inputs_converter(batch)
+                    output_old_origin = model.teacher_model(task_key=self.args.ordered_cl_tasks[self.num_task-2],**old_inputs)
+                    output_old = output_old_origin['logits']
+                    logits_kd = logits[:,:output_old.shape[1]]
+                    kd_loss = 0
+                    _kd_loss = F.kl_div(
+                            F.log_softmax(logits_kd / tau, dim=1),
+                            F.log_softmax(output_old / tau, dim=1),
+                            reduction='mean',
+                            log_target=True
+                    ) * (tau ** 2)
+                    kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
+                    loss = kd_loss + 20000 * (1-(self.num_task-1)/(self.num_task)) * loss
+
+                    curr_vilt_output = output['v_output']
+                    old_vilt_output = output_old_origin['v_output']
+                    kd_loss_vilt = 0
+                    tau = 1
+                    _kd_loss_vilt = F.kl_div(
+                            F.log_softmax(curr_vilt_output / tau, dim=1),
+                            F.log_softmax(old_vilt_output / tau, dim=1),
+                            reduction='mean',
+                            log_target=True
+                    ) * (tau ** 2)
+                    kd_loss_vilt += (self.num_task-1)/(self.num_task) * _kd_loss_vilt
+                    loss = kd_loss_vilt * 10000 + loss
+            
+                    for i in range(self.num_task-1):
+                        loss -= max(0.1 * self.loss_criterion(model.task_tokens[i],model.task_tokens[-1]),1/(self.num_task-1)*0.1*loss)        
+
+            else:
+                logger.info("not in dytox")
 
         if ewc is not None and ewc.do_ewc() is True:
             ewc_task, ewc_loss = ewc.compute_ewc_loss(model)
@@ -242,7 +299,7 @@ class VQATrainer(TaskTrainer):
         #model = torch.nn.parallel.DistributedDataParallel(model, device_ids = [self.args.local_rank], output_device=[self.args.local_rank],find_unused_parameters=True)
         if self.args.cl_algorithm == 'adapter':
             model.set_active_adapters("vqa")
-        elif self.args.cl_algorithm == 'experience_replay':
+        elif self.args.replay == 1:
             assert replay_memory is not None
             do_replay = replay_memory.do_replay()
         if ewc != None:
@@ -297,7 +354,7 @@ class VQATrainer(TaskTrainer):
                 return None
             logger.info("Evaluation after epoch {}: {:.2f}".format(epoch+1, eval_score))
             wandb_logger.log({'vqa': {'val_score': eval_score}})
-            if eval_score > best_score:
+            if eval_score > best_score and epoch == self.num_epochs-1:
                 logger.info("New best evaluation score: {:.2f}".format(eval_score))
                 best_score = eval_score
                 best_model['epoch'] = epoch
@@ -315,12 +372,11 @@ class VQATrainer(TaskTrainer):
         eval_score = 0
         for step, batch in enumerate(tqdm(self.vqa_val_dataloader, desc='Evaluating on VQA val set')):
            
-            output = self.forward_pass(model, batch, do_eval=True)
+            output,_ = self.forward_pass(model, batch, do_eval=True)
             if self.args.dytox:
                 logits = output['logits']
             else:
                 logits = output[1]
-            # add by Yuliang
             #if self.args.task_attention:
             #    logits = logits.reshape(-1,3129)
             target = batch['target_scores'].to(self.device)
@@ -345,10 +401,17 @@ class VQATrainer(TaskTrainer):
             model.set_active_adapters("vqa")
 
         # Load model with encoder weights from encoder_path, and classifier weights from model_path
-        model.teacher_model = None
-        logger.info('the model_path is ' + model_path)
-        model.load_state_dict(torch.load(model_path))
-        logger.info("Loaded model checkpoint from {}".format(model_path))
+        #if self.args.parallel != 0:
+        #    model.module.teacher_model = None
+        #    logger.info('the model_path is ' + model_path)
+        #    model.module.load_state_dict(torch.load(model_path))
+        #    logger.info("Loaded model checkpoint from {}".format(model_path))
+        #else:
+        #    model.teacher_model = None
+        #    logger.info('the model_path is ' + model_path)
+        #    model.load_state_dict(torch.load(model_path))
+        ##    logger.info("Loaded model checkpoint from {}".format(model_path))
+        #    logger.info("the teacher model of the loaded model is " + model.teacher_model)
 
         return self.eval(model)
 

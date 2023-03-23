@@ -50,10 +50,10 @@ class MSCOCOImagesDataset(Dataset):
             if self.finetune:
                 if prob > 10:
                     continue
-            else:
-                if prob > 10:
-                    continue
-                pass
+            #else:
+            #    if prob > 5:
+            #       continue
+            #    pass
                
             fn_split = fn.split('_')[-1]
             image_id = int(fn_split.strip('.jpg'))

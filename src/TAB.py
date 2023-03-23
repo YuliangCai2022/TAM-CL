@@ -21,7 +21,6 @@ class Mlp(nn.Module):
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
-            # modified by Yuliang
             #trunc_normal_(m.weight, std=.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
@@ -65,7 +64,6 @@ class ClassAttention(nn.Module):
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
-            # modified by Yuliang
             #trunc_normal_(m.weight, std=.02)
             nn.init.normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:

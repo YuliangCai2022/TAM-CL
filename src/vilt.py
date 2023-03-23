@@ -18,7 +18,6 @@ from transformers import BertTokenizerFast
 from transformers import logging as transformers_logging
 from TAB import ClassAttention, Block
 
-# add by Yuliang
 #from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 
 from continual_learner import EncoderWrapper, ContinualLearner
@@ -174,7 +173,6 @@ class ViltContinualLearner(ContinualLearner):
         self.task_configs = task_configs
         self.use_TAB = use_TAB
         self.cumu_label = 0
-        # added by Yuliang
         # crreate task token
         device = torch.device(
         "cuda" if torch.cuda.is_available() else "cpu")
@@ -187,10 +185,8 @@ class ViltContinualLearner(ContinualLearner):
         if 'nlvr2' in ordered_cl_tasks:
             self.vilt_encoder.expand_modality_type_embeddings()
 
-        # add by Yuliang, initialize task_token
         #trunc_normal_(self.task_token, std=.02)
         
-        #added by Yuliang add Task Attention Block into the model
         # should add a block instead of single task attention layer
 
         #self.token_dict = nn.ParameterDict()
@@ -232,11 +228,11 @@ class ViltContinualLearner(ContinualLearner):
         if task_config['model_type'] == 'classification':
             num_images = task_config['num_images']
             clf_layer = nn.Sequential(
-                            nn.Linear(self.encoder_dim*num_images, self.encoder_dim*2),
+                            nn.Linear(self.encoder_dim*1, self.encoder_dim*2),
                             nn.LayerNorm(self.encoder_dim*2),
                             nn.GELU(),
                             nn.Linear(self.encoder_dim*2, num_labels + self.cumu_label)
-                        )
+                        ) # used to be *num_images
             self.task_layer_dict[task_key] = clf_layer
             self.cumu_label += num_labels
 
@@ -264,7 +260,7 @@ class ViltContinualLearner(ContinualLearner):
 
         # for now only modify the single image function for VQAV2
         task_config = None
-        if teacher_key == None or teacher_key == 'snli-ve':
+        if teacher_key == None:
             task_config = self.task_configs[task_key]
         else:
             task_config = self.task_configs[teacher_key]
@@ -301,15 +297,12 @@ class ViltContinualLearner(ContinualLearner):
 
         if self.use_TAB != 0:
             return encoder_output
-        # add by Yuliang
         #print("encoder_output size is " + str(encoder_output.shape))
         #if self.use_TAB:
         #    TAB_output,_,_ = self.TAB(torch.cat((token, encoder_output), dim=0).reshape(-1,1,768))
         #    output_logits = self.task_layer[task_key](TAB_output)
         #    return TAB_output, output_logits
-        # modified by Yuliang
         output_logits = self.task_layer[task_key](encoder_output)
-        # modified by Yuliang
         return encoder_output, output_logits
 
     def forward_multi_images(self, task_key: str, images: List[List], texts: List[str], num_images=2) -> (torch.FloatTensor, torch.FloatTensor):
@@ -353,12 +346,14 @@ class ViltContinualLearner(ContinualLearner):
             }
             pooled_out = self.vilt_encoder(**encodings)
 
-            # modified by Yuliang, adding TAB here
             #if self.use_TAB:
             #    token = self.token_dict[task_key]
             #    pooled_out,_,_ = self.TAB(torch.cat((token, pooled_out), dim=0).reshape(-1,1,768))
             pooler_outputs.append(pooled_out)
         pooled_output = torch.cat(pooler_outputs, dim=-1) # [bs, 1536]
+        pooled_output_odd = pooled_output[:,1::2]
+        pooled_output_even = pooled_output[:,::2]
+        pooled_output = torch.mean(torch.stack([pooled_output_even,pooled_output_odd],dim=0),dim=0)
 
         if self.use_TAB != 0:
             return pooled_output

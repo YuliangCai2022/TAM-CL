@@ -72,7 +72,10 @@ class SNLIVETrainer(TaskTrainer):
         self.image_dataset = Flickr30KImagesDataset(os.path.join(args.climb_data_dir, flickr30k_config['data_dir']), 
                          visual_input_type=self.visual_input_type)
 
-        self.train_sampler = torch.utils.data.distributed.DistributedSampler(self.image_dataset)
+        if self.args.parallel != 0:
+            self.train_sampler = torch.utils.data.distributed.DistributedSampler(self.image_dataset)
+        else:
+            self.train_sampler = None
 
         # Create dataloaders for training and validation
         self.snli_ve_train_dataloader = build_snli_ve_dataloader(args=args,
@@ -80,14 +83,16 @@ class SNLIVETrainer(TaskTrainer):
                                                                  images_dataset=self.image_dataset,
                                                                  split='train',
                                                                  ft=self.finetune,
-                                                                 visual_input_type=self.visual_input_type)
+                                                                 visual_input_type=self.visual_input_type,
+                                                                 sampler = self.train_sampler)
 
         self.snli_ve_dev_dataloader = build_snli_ve_dataloader(args=args,
                                                                data_dir=self.data_dir,
                                                                images_dataset=self.image_dataset,
                                                                split='dev',
                                                                ft=self.finetune,
-                                                               visual_input_type=self.visual_input_type)
+                                                               visual_input_type=self.visual_input_type,
+                                                               sampler = self.train_sampler)
 
         # Training hyperparameters
         self.num_epochs = self.snli_ve_config['num_epochs']
@@ -116,10 +121,10 @@ class SNLIVETrainer(TaskTrainer):
                 output = model(task_key='snli-ve', **inputs)
         else:
             output = model(task_key='snli-ve', **inputs)
-        return output
+        return output, inputs
 
 
-    def train_step(self, model, batch: Dict, optimizer=None, scheduler=None, ewc=None):
+    def train_step(self, model, batch: Dict, optimizer=None, scheduler=None, ewc=None,replay=None):
 
         '''
         A single training step, including forward pass and backpropagation of loss
@@ -138,56 +143,135 @@ class SNLIVETrainer(TaskTrainer):
         ewc_loss
         ''' 
 
-        output = self.forward_pass(model, batch)
+        output, batch_inputs = self.forward_pass(model, batch)
+        div_output = None
         if self.args.dytox == 0:
             logits = output[1]
         else:
             logits = output['logits']
+            div_output = output['div']
         target = batch['labels'].to(self.device)
-        loss = self.loss_criterion(logits, target)
+        if self.args.dytox == 0:
+            loss = self.loss_criterion(logits, target)
+        else:
+            loss = self.loss_criterion(logits,target)
 
-        #add by Yuliang call this only when have multitask
-        # teacher model = model of previous task
-        if self.args.dytox != 0:
-            if model.module.teacher_model != None and self.args.task_attention:
-                # get the output from the model of previous task
-                kd_loss = 0
-                tau = 5
-                old_inputs = self.batch2inputs_converter(batch)
-                output_old = model.module.teacher_model(task_key='vqa', teacher_key = 'snli-ve',**old_inputs)
-                output_old = output_old['logits']
-                logits_kd = logits[:,:output_old.shape[1]]
-                kd_loss = 0
-                _kd_loss = F.kl_div(
-                        F.log_softmax(logits_kd / tau, dim=1),
-                        F.log_softmax(output_old / tau, dim=1),
-                        reduction='mean',
-                        log_target=True
-                ) * (tau ** 2)
-                kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
+      
+        if self.args.dytox != 0 and replay == None:
+            if self.args.parallel != 0:
+                if model.module.teacher_model != None and self.args.task_attention:
+                    # get the output from the model of previous task
+                    kd_loss = 0
+                    tau = 5
+                    old_inputs = batch_inputs
+                    output_old_origin = model.module.teacher_model(task_key='vqa', teacher_key = 'snli-ve',**old_inputs)
+                    output_old = output_old_origin['logits']
+                    logits_kd = logits[:,:output_old.shape[1]]
+                    kd_loss = 0
+                    _kd_loss = F.kl_div(
+                            F.log_softmax(logits_kd / tau, dim=1),
+                            F.log_softmax(output_old / tau, dim=1),
+                            reduction='mean',
+                            log_target=True
+                    ) * (tau ** 2)
+                    kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
+                    
+                    loss = kd_loss * 20000 + (1-(self.num_task-1)/(self.num_task)) * loss
+
+                    
+                    # creating KD loss for vilt intermediate output
+                    #inputs = self.batch2inputs_converter(batch)
+
+                    #_,_,_,curr_vilt_output,_ = model.module.forward_features(task_key='snli-ve', **inputs)
+                    #_,_,_,old_vilt_output,_ = model.module.teacher_model.forward_features(task_key='vqa', teacher_key = 'snli-ve', **inputs)
+                    curr_vilt_output = output['v_output']
+                    old_vilt_output = output_old_origin['v_output']
+                    kd_loss_vilt = 0
+                    tau = 1
+                    _kd_loss_vilt = F.kl_div(
+                            F.log_softmax(curr_vilt_output / tau, dim=1),
+                            F.log_softmax(old_vilt_output / tau, dim=1),
+                            reduction='mean',
+                            log_target=True
+                    ) * (tau ** 2)
+                    kd_loss_vilt += (self.num_task-1)/(self.num_task) * _kd_loss_vilt
+                    loss = kd_loss_vilt * 10000 + loss
+            
+                loss -= 0.1 * self.loss_criterion(model.module.task_tokens[0],model.module.task_tokens[1])
+            else:
+                if model.teacher_model != None and self.args.task_attention:
+                    # get the output from the model of previous task
+                    kd_loss = 0
+                    tau = 5
+                    old_inputs = batch_inputs
+                    output_old_origin = model.teacher_model(task_key=self.args.ordered_cl_tasks[self.num_task-2],teacher_key='snli-ve',**old_inputs)
+                    output_old = output_old_origin['logits']
+                    logits_kd = logits[:,:output_old.shape[1]]
+                    kd_loss = 0
+                    _kd_loss = F.kl_div(
+                            F.log_softmax(logits_kd / tau, dim=1),
+                            F.log_softmax(output_old / tau, dim=1),
+                            reduction='mean',
+                            log_target=True
+                    ) * (tau ** 2)
+                    kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
+                    
+                    #loss = kd_loss * 1000 + (1-(self.num_task-1)/(self.num_task)) * loss # used to be 1000
+
+                    
+                    # creating KD loss for vilt intermediate output
+                    #inputs = self.batch2inputs_converter(batch)
+
+                    #_,_,_,curr_vilt_output,_ = model.forward_features(task_key='snli-ve', **inputs)
+                    #_,_,_,old_vilt_output,_ = model.teacher_model.forward_features(task_key='vqa', teacher_key = 'snli-ve', **inputs)
+                    curr_vilt_output = output['v_output']
+                    old_vilt_output = output_old_origin['v_output']
+                    kd_loss_vilt = 0
+                    tau = 1
+                    _kd_loss_vilt = F.kl_div(
+                            F.log_softmax(curr_vilt_output / tau, dim=1),
+                            F.log_softmax(old_vilt_output / tau, dim=1),
+                            reduction='mean',
+                            log_target=True
+                    ) * (tau ** 2)
+                    kd_loss_vilt += (self.num_task-1)/(self.num_task) * _kd_loss_vilt
+                    loss = kd_loss_vilt * 5000 + loss # 5000 #20000 for previous +replay experiment
+
+                    #tokenkd
+                    curr_vilt_output = output['tokens'][-1]
+                    old_vilt_output = output_old_origin['tokens'][-1]
+                    kd_loss_vilt = 0
+                    tau = 1
+                    _kd_loss_vilt = F.kl_div(
+                            F.log_softmax(curr_vilt_output / tau, dim=1),
+                            F.log_softmax(old_vilt_output / tau, dim=1),
+                            reduction='mean',
+                            log_target=True
+                    ) * (tau ** 2)
+                    kd_loss_vilt += (self.num_task-1)/(self.num_task) * _kd_loss_vilt
+                    #loss = kd_loss_vilt * 500 + loss # 5000 #20000 for previous +replay experiment
                 
-                loss = kd_loss * 20000 + (1-(self.num_task-1)/(self.num_task)) * loss
+                    for i in range(self.num_task-1):
+                       loss -= max(0.1 * self.loss_criterion(model.task_tokens[i],model.task_tokens[-1]),1/(self.num_task-1)*0.05*loss)
 
+                    '''nb_classes = logits.shape[1]
+                    nb_new_classes = div_output.shape[1] - 1
+                    nb_old_classes = nb_classes - nb_new_classes
+
+                    div_targets = torch.clone(target)
+                    mask_old_cls = div_targets < nb_old_classes
+                    mask_new_cls = ~mask_old_cls
+
+                    div_targets[mask_old_cls] = 0
+                    div_targets[mask_new_cls] -= nb_old_classes - 1
+
+                    div_loss = self.loss_criterion(div_output, div_targets)
+                    logger.info("div_loss is " + str(div_loss))
+                    loss += div_loss * 5000'''
                 
-                # creating KD loss for vilt intermediate output
-                inputs = self.batch2inputs_converter(batch)
 
-                _,_,_,curr_vilt_output,_ = model.forward_features(task_key='snli-ve', **inputs)
-                _,_,_,old_vilt_output,_ = model.teacher_model.forward_features(task_key='vqa', teacher_key = 'snli-ve', **inputs)
-                kd_loss_vilt = 0
-                tau = 1
-                _kd_loss_vilt = F.kl_div(
-                        F.log_softmax(curr_vilt_output / tau, dim=1),
-                        F.log_softmax(old_vilt_output / tau, dim=1),
-                        reduction='mean',
-                        log_target=True
-                ) * (tau ** 2)
-                kd_loss_vilt += (self.num_task-1)/(self.num_task) * _kd_loss_vilt
-                loss = kd_loss_vilt * 10000 + loss
-        
-            loss -= 0.1 * self.loss_criterion(model.module.task_tokens[0],model.module.task_tokens[1])
-
-
+        else:
+            logger.info("not dytox")
             
 
 
@@ -236,7 +320,7 @@ class SNLIVETrainer(TaskTrainer):
         logger.info("in train after model to parallel")
         if self.args.cl_algorithm == 'adapter':
             model.set_active_adapters("snli-ve")
-        elif self.args.cl_algorithm == 'experience_replay':
+        elif self.args.replay == 1:
             assert replay_memory is not None
             do_replay = replay_memory.do_replay()
         if ewc != None:
@@ -270,7 +354,7 @@ class SNLIVETrainer(TaskTrainer):
                 
                 loss, output, ewc_task, ewc_loss = self.train_step(model, batch, optimizer, scheduler, ewc)
 
-                if self.args.cl_algorithm == 'experience_replay' and do_replay is True:
+                if self.args.replay == 1 and do_replay is True:
                     if (step + 1) % self.args.replay_frequency == 0:
                         sampled_replay_task = replay_memory.sample_replay_task()
                         replay_loss = replay_memory.run_replay_step(task_key=sampled_replay_task, model=model)
@@ -288,12 +372,23 @@ class SNLIVETrainer(TaskTrainer):
                 return copy.deepcopy(model)
             logger.info("Evaluation after epoch {}: {:.2f}".format(epoch+1, eval_score))
             wandb_logger.log({'snli-ve': {'dev_score': eval_score}})
-            if eval_score > best_score:
+            if eval_score > best_score and epoch == self.num_epochs-1:
                 logger.info("New best evaluation score: {:.2f}".format(eval_score))
                 best_score = eval_score
                 best_model['epoch'] = epoch
-                model.teacher_model = None
+                # teacher model should not be none here !!!!!!!!!!!!
+                temp_teacher_model = None
+                if self.args.parallel != 0:
+                    temp_teacher_model = copy.deepcopy(model.module.teacher_model)
+                    model.module.teacher_model = None
+                else:
+                    #temp_teacher_model = copy.deepcopy(model.teacher_model)
+                    model.teacher_model = None
                 best_model['model'] = copy.deepcopy(model)
+                if self.args.parallel != 0:
+                    model.module.teacher_model = temp_teacher_model
+                else:
+                    model.teacher_model = temp_teacher_model
 
         return best_score, best_model
 
@@ -308,7 +403,7 @@ class SNLIVETrainer(TaskTrainer):
         eval_score = 0
         for step, batch in enumerate(tqdm(self.snli_ve_dev_dataloader, desc='Evaluating on SNLI-VE val set')):
            
-            output = self.forward_pass(model, batch, do_eval=True)
+            output,_ = self.forward_pass(model, batch, do_eval=True)
             if self.args.dytox:
                 logits = output['logits']
             else:
@@ -329,13 +424,17 @@ class SNLIVETrainer(TaskTrainer):
         Returns SNLI-VE evaluation accuracy of post-VE model checkpoint
         '''
 
-        model.to(self.device)
+        #model.to(self.device)
         if self.args.cl_algorithm == 'adapter':
             model.set_active_adapters("snli-ve")
 
         # Load model with encoder weights from encoder_path, and classifier weights from model_path
-        model.load_state_dict(torch.load(model_path))
-        logger.info("Loaded model checkpoint from {}".format(model_path))
+        #if self.args.parallel != 0:
+        #    model.module.load_state_dict(torch.load(model_path))
+        #else:
+        #    model.load_state_dict(torch.load(model_path))
+
+        #logger.info("Loaded model checkpoint from {}".format(model_path))
 
         return self.eval(model)
 

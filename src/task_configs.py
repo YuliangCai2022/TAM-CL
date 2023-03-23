@@ -2,8 +2,10 @@ from train.train_vqa import VQATrainer, LowShotVQATrainer
 from train.train_nlvr2 import NLVR2Trainer, LowShotNLVR2Trainer
 from train.train_snli_ve import SNLIVETrainer, LowShotSNLIVETrainer
 from train.train_vcr import VCRTrainer, LowShotVCRTrainer
+from train.train_cocoqa import COCOQATrainer, LowShotCOCOQATrainer
+from train.train_pathvqa import PathVQATrainer, LowShotPathVQATrainer
 
-SUPPORTED_VL_TASKS = ['vqa', 'nlvr2', 'snli-ve', 'vcr']
+SUPPORTED_VL_TASKS = ['vqa', 'nlvr2', 'snli-ve', 'vcr', 'pathvqa','cocoqa']
 
 mscoco_config = {
         'data_dir': 'ms-coco/',
@@ -21,7 +23,7 @@ vqa_config = {
         'num_labels': 3129,
         'num_images': 1,
         'model_type': 'classification',
-        'num_epochs': 1,  # changed for test, originally is 10
+        'num_epochs': 1,  # changed for test, originally is 10 /7
         'lr': 1e-4,
         'weight_decay': 1e-2,
         'adam_epsilon': 1e-8,
@@ -34,6 +36,48 @@ vqa_config = {
                             'eval_epochs': [6, 8, 10]}
 }
 
+
+pathvqa_config = {
+        'task_name': 'PathVQA',
+        'data_dir': 'pathvqa/',
+        'splits': ['train', 'val'],
+        'num_labels': 4092,
+        'num_images': 1,
+        'model_type': 'classification',
+        'num_epochs': 15, #20 /15
+        'lr': 5e-4,                     #1e-4 for full fine-tuning
+        'weight_decay': 1e-2,
+        'adam_epsilon': 1e-8,
+        'warmup_ratio': 0.1,
+        'task_trainer': PathVQATrainer,
+        'random_baseline_score': 0.0,
+        'low_shot_config': {'task_trainer': LowShotPathVQATrainer,
+                            'type': 'percentage',
+                            'percentage':0.05,
+                            'eval_epochs': [6, 8, 10]}
+}
+
+cocoqa_config = {
+        'task_name': 'COCOQA',
+        'data_dir': 'cocoqa/',
+        'images_source': 'ms-coco',
+        'splits': ['train', 'test'],
+        'num_labels': 430,
+        'num_images': 1,
+        'model_type': 'classification',
+        'num_epochs': 5, #10 5
+        'lr': 1e-4,
+        'weight_decay': 1e-2,
+        'adam_epsilon': 1e-8,
+        'warmup_ratio': 0.1,
+        'task_trainer': COCOQATrainer,
+        'random_baseline_score': 0.0,
+        'low_shot_config': {'task_trainer': LowShotCOCOQATrainer,
+                            'type': 'percentage',
+                            'percentage':0.05,
+                            'eval_epochs': [6, 8, 10]}
+}
+
 nlvr_config = {
         'task_name': 'NLVRv2',
         'data_dir': 'nlvr2/',
@@ -41,7 +85,7 @@ nlvr_config = {
         'num_labels': 2,
         'num_images': 2,
         'model_type': 'classification',
-        'num_epochs': 1, #changed for test, originally is 10
+        'num_epochs': 6, #changed for test, originally is 10 6
         'lr': 1e-4,
         'weight_decay': 1e-2,
         'adam_epsilon': 1e-8,
@@ -63,7 +107,7 @@ snli_ve_config = {
         'num_labels': 3,
         'num_images': 1,
         'model_type': 'classification',
-        'num_epochs': 1, # 5
+        'num_epochs': 4, # 5 /4
         'lr': 5e-5,
         'weight_decay': 1e-2,
         'adam_epsilon': 1e-8,
@@ -223,8 +267,10 @@ task_configs = {
     'ms-coco': mscoco_config,
     'flickr30k': flickr_config,
     'vqa': vqa_config,
+    'cocoqa': cocoqa_config,
     'nlvr2': nlvr_config,
     'snli-ve': snli_ve_config,
+    'pathvqa': pathvqa_config,
     'vcr': vcr_config,
     'imdb': imdb_config,
     'sst2': sst2_config,

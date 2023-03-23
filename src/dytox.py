@@ -74,7 +74,8 @@ class DyTox(nn.Module):
         self.sabs = transformer.vilt_encoder
         self.tabs = transformer.TAB
         self.task_tokens = nn.ParameterList([nn.Parameter(torch.zeros(1,self.embed_dim))])
-
+        # add to test 
+        self.head_div = None
         
         in_dim, out_dim = self._get_ind_clf_dim()
         self.head = transformer.task_layer_dict
@@ -94,6 +95,10 @@ class DyTox(nn.Module):
         """
         self.nb_classes_per_task.append(nb_new_classes)
 
+        # add for test
+        self.head_div = ContinualClassifier(
+                self.embed_dim, self.nb_classes_per_task[-1] + 1
+            ).cuda()
         # Class tokens ---------------------------------------------------------
         new_task_token = copy.deepcopy(self.task_tokens[-1])
         trunc_normal_(new_task_token, std=.02)
@@ -298,7 +303,7 @@ class DyTox(nn.Module):
         
 
 
-    def forward_classifier(self, task_key: str, tokens, last_token, teacher_key, test_out = None):
+    def forward_classifier(self, task_key: str, tokens, last_token,vilt_output, teacher_key, test_out = None):
         """Once all task embeddings e_1, ..., e_t are extracted, classify.
 
         Classifier has different mode based on a pattern x-y:
@@ -326,18 +331,21 @@ class DyTox(nn.Module):
         #for logit in logits:
         #    logger.info(logit.shape)
         #logits = torch.cat(logits, dim=1)
-
+        # add for test
+        if self.head_div != None:
+            logits_div = self.head_div(last_token)
 
         return {
             'logits': logits,
             'div': logits_div,
             'tokens': tokens,
-            'test': test_output
+            'test': test_output,
+            'v_output': vilt_output
         }
 
     def forward(self, task_key: str, images: List, texts: List[str], teacher_key = None):
-        tokens, last_token, _, _, test_output = self.forward_features(task_key, images=images, texts=texts, teacher_key = teacher_key)
-        return self.forward_classifier(tokens = tokens, task_key = task_key, last_token = last_token, teacher_key = teacher_key, test_out = test_output)
+        tokens, last_token, _, v_output, test_output = self.forward_features(task_key, images=images, texts=texts, teacher_key = teacher_key)
+        return self.forward_classifier(tokens = tokens, task_key = task_key, last_token = last_token, vilt_output = v_output, teacher_key = teacher_key, test_out = test_output)
 
 
 def eval_training_finetuning(mode, in_ft):
@@ -366,6 +374,10 @@ def update_dytox(model, task_id, args, teacher_model):
         )
     else:
         # the num here is the output dim of current task's header
-        model.module.add_model(task_configs[args.ordered_cl_tasks[task_id]]['num_labels'])
+        if args.parallel != 0:
+            model.module.add_model(task_configs[args.ordered_cl_tasks[task_id]]['num_labels'])
+        else:
+            model.add_model(task_configs[args.ordered_cl_tasks[task_id]]['num_labels'])
+
 
     return model
