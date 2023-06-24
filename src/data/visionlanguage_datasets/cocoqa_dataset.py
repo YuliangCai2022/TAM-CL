@@ -87,8 +87,17 @@ class COCOQADataset(Dataset):
             
             data_len = len(answer_list)
             self.data = []
-
+            j = 0 
             for i in range(data_len):
+                '''
+                if split == "train":
+                    if j == 40000:
+                        break
+                if split == "val":
+                    if j == 10000:
+                        break
+                j += 1'''
+
                 curr_question = question_list[i]
                 curr_answer = answer_list[i]
                 curr_img_id = int(img_list[i])

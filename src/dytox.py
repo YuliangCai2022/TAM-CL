@@ -228,8 +228,8 @@ class DyTox(nn.Module):
     def forward_features(self, task_key: str, images: List, texts: List[str], teacher_key = None):
         # Shared part, this is the ENCODER
         B = len(images)
-        vilt_output = self.transformer(task_key=task_key, images=images, texts=texts, teacher_key = teacher_key)
-        
+        vilt_output_origin = self.transformer(task_key=task_key, images=images, texts=texts, teacher_key = teacher_key)
+        vilt_output = vilt_output_origin[0]
         # VCR's data shape is 3 dim, no need to expand
         if task_key != 'vcr' and teacher_key != 'vcr':
             vilt_output = vilt_output.reshape(vilt_output.shape[0],1,vilt_output.shape[1])
@@ -299,11 +299,11 @@ class DyTox(nn.Module):
         if len(test_output) == 0:
             test_output= None
 
-        return tokens, tokens[-1], attentions, vilt_output, test_output
+        return tokens, tokens[-1], attentions, vilt_output, test_output, vilt_output_origin[1]
         
 
 
-    def forward_classifier(self, task_key: str, tokens, last_token,vilt_output, teacher_key, test_out = None):
+    def forward_classifier(self, task_key: str, tokens, last_token,vilt_output, teacher_key, test_out = None, mid_features = None):
         """Once all task embeddings e_1, ..., e_t are extracted, classify.
 
         Classifier has different mode based on a pattern x-y:
@@ -340,12 +340,13 @@ class DyTox(nn.Module):
             'div': logits_div,
             'tokens': tokens,
             'test': test_output,
-            'v_output': vilt_output
+            'v_output': vilt_output,
+            'mid_features': mid_features
         }
 
     def forward(self, task_key: str, images: List, texts: List[str], teacher_key = None):
-        tokens, last_token, _, v_output, test_output = self.forward_features(task_key, images=images, texts=texts, teacher_key = teacher_key)
-        return self.forward_classifier(tokens = tokens, task_key = task_key, last_token = last_token, vilt_output = v_output, teacher_key = teacher_key, test_out = test_output)
+        tokens, last_token, _, v_output, test_output, mid_feature = self.forward_features(task_key, images=images, texts=texts, teacher_key = teacher_key)
+        return self.forward_classifier(tokens = tokens, task_key = task_key, last_token = last_token, vilt_output = v_output, teacher_key = teacher_key, test_out = test_output, mid_features = mid_feature)
 
 
 def eval_training_finetuning(mode, in_ft):

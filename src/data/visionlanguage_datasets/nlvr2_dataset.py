@@ -69,7 +69,8 @@ class NLVR2Dataset(Dataset):
                     #prob = random.randint(1,100)
                     #if prob > 5:
                     #    continue
-                        
+                    if i == 40000:
+                        break
                     i+= 1
                     #print(i)
                     example = {}

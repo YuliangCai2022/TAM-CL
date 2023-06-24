@@ -57,7 +57,6 @@ class VQATrainer(TaskTrainer):
 
         self.args = args
         self.device = device
-        self.teacher_model = teacher_model
         self.vqa_config = task_configs['vqa']
         self.data_dir = os.path.join(args.climb_data_dir, self.vqa_config['data_dir'])
         self.num_task = num_task
@@ -112,20 +111,10 @@ class VQATrainer(TaskTrainer):
         Returns:
         scores: score of predicted answer (batch_size, num_answers)
         '''
-        #if self.args.dytox:
-        #    logits = logits[:,4092:]
-        logits = torch.max(logits, 1)[1].data # argmax
-        #logits = logits[:32]
         
+        logits = torch.max(logits, 1)[1].data # argmax
         one_hots = torch.zeros(*labels.size()).to(self.device)
-        #logits = logits[:one_hots.shape[0]]
-        #logger.info(logits)
-        #print("logits shape is " + str(logits.shape))
-        #print("one_hots shape is " + str(one_hots.shape))
-        if self.args.task_attention:
-            one_hots.scatter_(1, logits.view(-1,1), 1)
-        else:
-            one_hots.scatter_(1, logits.view(-1,1), 1)
+        one_hots.scatter_(1, logits.view(-1,1), 1)
         scores = (one_hots * labels)
         return scores
     
@@ -149,7 +138,7 @@ class VQATrainer(TaskTrainer):
             output = model(task_key='vqa', **inputs)
         return output, inputs
 
-    def train_step(self, model, batch: Dict, optimizer=None, scheduler=None, ewc=None):
+    def train_step(self, model, batch: Dict, optimizer=None, scheduler=None, ewc=None, replay = None):
 
         '''
         A single training step, including forward pass and backpropagation of loss
@@ -175,56 +164,41 @@ class VQATrainer(TaskTrainer):
         else:
             logits = output['logits']
         target = batch['target_scores'].to(self.device)
-        #if self.args.dytox:
-        #    loss = self.loss_criterion(logits[:,4092:], target) * target.shape[1]
-        #else:
-        loss = self.loss_criterion(logits, target) * target.shape[1]
+        loss = self.loss_criterion(logits, target) #* target.shape[1]
 
-
-        # teacher model = model of previous task
-        if self.args.parallel != 0:
-            if self.args.task_attention and not self.finetune:
-                if model.module.teacher_model != None and self.args.task_attention:
-                    # get the output from the model of previous task
-                    kd_loss = 0
-                    tau = 5
-                    old_inputs = self.batch2inputs_converter(batch)
-                    output_old = model.module.teacher_model(task_key='pathvqa',**old_inputs)
-                    output_old = output_old['logits']
-                    logits_kd = logits[:,:output_old.shape[1]]
-                    kd_loss = 0
-                    _kd_loss = F.kl_div(
-                            F.log_softmax(logits_kd / tau, dim=1),
-                            F.log_softmax(output_old / tau, dim=1),
-                            reduction='mean',
-                            log_target=True
-                    ) * (tau ** 2)
-                    kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
-                    loss = kd_loss + 20000 * (1-(self.num_task-1)/(self.num_task)) * loss
-
-                    curr_vilt_output = output['v_output']
-                    old_vilt_output = output_old_origin['v_output']
-                    kd_loss_vilt = 0
-                    tau = 1
-                    _kd_loss_vilt = F.kl_div(
-                            F.log_softmax(curr_vilt_output / tau, dim=1),
-                            F.log_softmax(old_vilt_output / tau, dim=1),
-                            reduction='mean',
-                            log_target=True
-                    ) * (tau ** 2)
-                    kd_loss_vilt += (self.num_task-1)/(self.num_task) * _kd_loss_vilt
-                    loss = kd_loss_vilt * 10000 + loss
-
-                    loss -= 0.1 * self.loss_criterion(model.module.task_tokens[0],model.module.task_tokens[1])
-
-        else:
-            if self.args.task_attention and not self.finetune:
+        if self.args.dytox != 0 and replay != 1:
+            if self.args.parallel != 0:
+                   pass # deleted
+            else:
                 if model.teacher_model != None and self.args.task_attention:
+                    logger.info("teacher_mode is not none")
                     # get the output from the model of previous task
                     kd_loss = 0
                     tau = 5
-                    old_inputs = self.batch2inputs_converter(batch)
-                    output_old_origin = model.teacher_model(task_key=self.args.ordered_cl_tasks[self.num_task-2],**old_inputs)
+                    old_inputs = batch_inputs
+                    output_old_origin = model.teacher_model(task_key=self.args.ordered_cl_tasks[self.num_task-2],teacher_key = 'vqa', **old_inputs)
+                    
+                    
+                    # the inner KD 
+                    curr_intermediate = output['mid_features']
+                    old_intermediate = output_old_origin['mid_features']
+
+                    inner_kd_loss = 0
+
+                    '''
+                    for key in curr_intermediate:
+                        _kd_loss = F.kl_div(
+                            F.log_softmax(curr_intermediate[key] / tau, dim=1),
+                            F.log_softmax(old_intermediate[key] / tau, dim=1),
+                            reduction='mean',
+                            log_target=True
+                        ) * (tau ** 2)
+                        inner_kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
+
+                    loss += inner_kd_loss * 5000'''
+                    
+                    '''
+                    # output KD
                     output_old = output_old_origin['logits']
                     logits_kd = logits[:,:output_old.shape[1]]
                     kd_loss = 0
@@ -235,10 +209,10 @@ class VQATrainer(TaskTrainer):
                             log_target=True
                     ) * (tau ** 2)
                     kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
-                    loss = kd_loss + 20000 * (1-(self.num_task-1)/(self.num_task)) * loss
+                    loss = kd_loss * 3000 + loss'''
 
-                    curr_vilt_output = output['v_output']
-                    old_vilt_output = output_old_origin['v_output']
+                    curr_vilt_output = output['v_output'] # ikd is 'v_output / tokens [-1]
+                    old_vilt_output = output_old_origin['v_output'] #ikd is 'v_output
                     kd_loss_vilt = 0
                     tau = 1
                     _kd_loss_vilt = F.kl_div(
@@ -248,14 +222,15 @@ class VQATrainer(TaskTrainer):
                             log_target=True
                     ) * (tau ** 2)
                     kd_loss_vilt += (self.num_task-1)/(self.num_task) * _kd_loss_vilt
-                    loss = kd_loss_vilt * 10000 + loss
-            
-                    for i in range(self.num_task-1):
-                        loss -= max(0.1 * self.loss_criterion(model.task_tokens[i],model.task_tokens[-1]),1/(self.num_task-1)*0.1*loss)        
+                    loss = kd_loss_vilt * 10000 + loss  # used to be 10000
 
-            else:
-                logger.info("not in dytox")
+                    
 
+                    for i in range(self.num_task-1): #self.loss_criterion()
+                        loss -= max(0.1 * self.loss_criterion(model.task_tokens[i],model.task_tokens[-1]),1/(self.num_task-1)*0.05*loss)
+                   
+
+         
         if ewc is not None and ewc.do_ewc() is True:
             ewc_task, ewc_loss = ewc.compute_ewc_loss(model)
             total_loss = loss + ewc_loss
@@ -354,7 +329,7 @@ class VQATrainer(TaskTrainer):
                 return None
             logger.info("Evaluation after epoch {}: {:.2f}".format(epoch+1, eval_score))
             wandb_logger.log({'vqa': {'val_score': eval_score}})
-            if eval_score > best_score and epoch == self.num_epochs-1:
+            if eval_score > best_score:
                 logger.info("New best evaluation score: {:.2f}".format(eval_score))
                 best_score = eval_score
                 best_model['epoch'] = epoch

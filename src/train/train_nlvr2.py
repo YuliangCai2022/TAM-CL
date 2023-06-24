@@ -131,6 +131,7 @@ class NLVR2Trainer(TaskTrainer):
         output,batch_inputs = self.forward_pass(model, batch)
         logits = None
         div_output = None
+        loss = 0
         if self.args.dytox == 0:
             logits = output[1]
         else:
@@ -146,49 +147,8 @@ class NLVR2Trainer(TaskTrainer):
         if self.args.dytox != 0 and replay == None:
             if self.args.parallel != 0:
                 if model.module.teacher_model != None and self.args.task_attention:
-                    #logger.info("enter the KD loss")
-                    # get the output from the model of previous task
-                    kd_loss = 0
-                    tau = 5
-                    
-                    old_inputs = batch_inputs
-                    output_old_origin = model.module.teacher_model(task_key='snli-ve', teacher_key = 'nlvr2',**old_inputs)
-                    output_old = output_old_origin['logits']
-                    logits_kd = logits[:,:output_old.shape[1]]
-                    kd_loss = 0
-                    _kd_loss = F.kl_div(
-                            F.log_softmax(logits_kd / tau, dim=1),
-                            F.log_softmax(output_old / tau, dim=1),
-                            reduction='mean',
-                            log_target=True
-                    ) * (tau ** 2)
-                    kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
-                    
-                    logger.info("kd_loss: " + str(kd_loss) + "loss: " + str(loss))
-                    #loss = kd_loss * 100 + (1-(self.num_task-1)/(self.num_task)) * loss
-                    loss = 0.5 * kd_loss * 20000 + 0.5  * loss
-                    
-                    #inputs = self.batch2inputs_converter(batch)
-
-                    #_,_,_,curr_vilt_output,_ = model.module.forward_features(task_key='nlvr2', **inputs)
-                    #_,_,_,old_vilt_output,_ = model.module.teacher_model.forward_features(task_key='nlvr2', **inputs)
-                    curr_vilt_output = output['v_output']
-                    old_vilt_output = output_old_origin['v_output']
-                    kd_loss_vilt = 0
-                    tau = 1
-                    _kd_loss_vilt = F.kl_div(
-                            F.log_softmax(curr_vilt_output / tau, dim=1),
-                            F.log_softmax(old_vilt_output / tau, dim=1),
-                            reduction='mean',
-                            log_target=True
-                    ) * (tau ** 2)
-                    kd_loss_vilt += (self.num_task-1)/(self.num_task) * _kd_loss_vilt
-                    logger.info("vKD loss is " + str(kd_loss_vilt))
-                    loss = kd_loss_vilt * 10000 + loss
-                    
-                    for i in range(self.num_task-1):
-                        loss -= max(0.1 * self.loss_criterion(model.task_tokens[i],model.task_tokens[-1]),1/(num_task-1)*0.05*loss)
-                    
+                   
+                    pass
             else:   
                 if model.teacher_model != None and self.args.task_attention:
                     #logger.info("enter the KD loss")
@@ -198,6 +158,26 @@ class NLVR2Trainer(TaskTrainer):
                     
                     old_inputs = batch_inputs
                     output_old_origin = model.teacher_model(task_key=self.args.ordered_cl_tasks[self.num_task-2],teacher_key='nlvr2',**old_inputs)
+                    
+                    '''
+                    # the inner kd
+                    curr_intermediate = output['mid_features']
+                    old_intermediate = output_old_origin['mid_features']
+
+                    inner_kd_loss = 0
+
+                    for key in curr_intermediate:
+                        _kd_loss = F.kl_div(
+                            F.log_softmax(curr_intermediate[key] / tau, dim=1),
+                            F.log_softmax(old_intermediate[key] / tau, dim=1),
+                            reduction='mean',
+                            log_target=True
+                        ) * (tau ** 2)
+                        inner_kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
+
+                    loss += inner_kd_loss * 5000'''
+
+                    
                     output_old = output_old_origin['logits']
                     logits_kd = logits[:,:output_old.shape[1]]
                     kd_loss = 0
@@ -210,13 +190,9 @@ class NLVR2Trainer(TaskTrainer):
                     kd_loss += (self.num_task-1)/(self.num_task) * _kd_loss
                     
                     logger.info("kd_loss: " + str(kd_loss) + "loss: " + str(loss))
-                    #loss = kd_loss * 1000 + (1-(self.num_task-1)/(self.num_task)) * loss #used to be 1
-                    
-                    
-                    #inputs = self.batch2inputs_converter(batch)
-
-                    #_,_,_,curr_vilt_output,_ = model.forward_features(task_key='nlvr2', **inputs)
-                    #_,_,_,old_vilt_output,_ = model.teacher_model.forward_features(task_key='nlvr2', **inputs)
+                    loss = kd_loss * 3000 + loss
+                 
+                    '''
                     curr_vilt_output = output['v_output'] # v_output
                     old_vilt_output = output_old_origin['v_output']
                     kd_loss_vilt = 0
@@ -229,41 +205,13 @@ class NLVR2Trainer(TaskTrainer):
                     ) * (tau ** 2)
                     kd_loss_vilt += (self.num_task-1)/(self.num_task) * _kd_loss_vilt
                     logger.info("vKD loss is " + str(kd_loss_vilt))
-                    loss = kd_loss_vilt * 5000 + loss # 20000 for long run #used to be 20000
+                    loss = kd_loss_vilt * 5000 + loss # 20000 for long run #used to be 20000'''
 
-
-                    # token kd
-                    curr_vilt_output = output['tokens'][-1] # v_output
-                    old_vilt_output = output_old_origin['tokens'][-1]
-                    kd_loss_vilt = 0
-                    tau = 1
-                    _kd_loss_vilt = F.kl_div(
-                            F.log_softmax(curr_vilt_output / tau, dim=1),
-                            F.log_softmax(old_vilt_output / tau, dim=1),
-                            reduction='mean',
-                            log_target=True
-                    ) * (tau ** 2)
-                    kd_loss_vilt += (self.num_task-1)/(self.num_task) * _kd_loss_vilt
-                    logger.info("vKD loss is " + str(kd_loss_vilt))
-                    #loss = kd_loss_vilt * 500 + loss # 20000 for long run #used to be 20000
                     
                     for i in range(self.num_task-1):
                         div_loss = self.loss_criterion(model.task_tokens[i],model.task_tokens[-1])
                         loss -= max(0.1 * div_loss,1/(self.num_task-1)*0.05*loss)
-                    '''nb_classes = logits.shape[1]
-                    nb_new_classes = div_output.shape[1] - 1
-                    nb_old_classes = nb_classes - nb_new_classes
-
-                    div_targets = torch.clone(target)
-                    mask_old_cls = div_targets < nb_old_classes
-                    mask_new_cls = ~mask_old_cls
-
-                    div_targets[mask_old_cls] = 0
-                    div_targets[mask_new_cls] -= nb_old_classes - 1
-
-                    div_loss = self.loss_criterion(div_output, div_targets)
-                    logger.info("div_loss is " + str(div_loss))
-                    loss += div_loss * 5000'''
+                    
 
         else:
             logger.info("not in dytox")
@@ -309,6 +257,8 @@ class NLVR2Trainer(TaskTrainer):
         '''
 
         model.to(self.device)
+        do_ewc = None
+        do_replay = None
         if self.args.cl_algorithm == 'adapter':
             model.set_active_adapters("nlvr2")
         elif self.args.replay == 1:
@@ -361,7 +311,7 @@ class NLVR2Trainer(TaskTrainer):
             eval_score = self.eval(model)
             logger.info("Evaluation after epoch {}: {:.2f}".format(epoch+1, eval_score))
             wandb_logger.log({'nlvr': {'val_score': eval_score}})
-            if eval_score > best_score and epoch == self.num_epochs-1:
+            if eval_score > best_score:# and epoch == self.num_epochs-1:
                 logger.info("New best evaluation score: {:.2f}".format(eval_score))
                 best_score = eval_score
                 best_model['epoch'] = epoch

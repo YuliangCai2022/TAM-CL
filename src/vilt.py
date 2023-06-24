@@ -185,6 +185,9 @@ class ViltContinualLearner(ContinualLearner):
         if 'nlvr2' in ordered_cl_tasks:
             self.vilt_encoder.expand_modality_type_embeddings()
 
+        self.mid_features = {}
+        for i in range(7,11):
+            self.vilt_encoder.vilt.encoder.layer[i].output.register_forward_hook(get_activation('TAB'+str(i),self.mid_features))
         #trunc_normal_(self.task_token, std=.02)
         
         # should add a block instead of single task attention layer
@@ -290,13 +293,19 @@ class ViltContinualLearner(ContinualLearner):
         # VQAv2 is trained here
         #if self.use_TAB:
         #    token = self.token_dict[task_key]
+        self.mid_features = {}
 
         encodings = self.vilt_encoder.process_inputs(images, texts)
+
+        # extract intermediate SAB features
+        #for i in range(7,11):
+        #    self.vilt_encoder.vilt.encoder.layer[i].output.register_forward_hook(get_activation('TAB'+str(i),mid_features))
+        
 
         encoder_output = self.vilt_encoder(**encodings)
 
         if self.use_TAB != 0:
-            return encoder_output
+            return encoder_output, self.mid_features
         #print("encoder_output size is " + str(encoder_output.shape))
         #if self.use_TAB:
         #    TAB_output,_,_ = self.TAB(torch.cat((token, encoder_output), dim=0).reshape(-1,1,768))
@@ -321,6 +330,12 @@ class ViltContinualLearner(ContinualLearner):
         pooled_output: pooled feature Tensor of size (batch_size, num_images*hidden_size)
         output_logits: logits for each output class (batch_size, num_labels)
         '''
+        # store the intermediate features 
+        self.mid_features = {}
+        combine_features = {}
+        #for i in range(7,11):
+        #    self.vilt_encoder.vilt.encoder.layer[i].output.register_forward_hook(get_activation('TAB'+str(i),mid_features))
+        
 
         flat_images_list = list(itertools.chain(*images))
         encodings = self.vilt_encoder.process_inputs(flat_images_list, texts)
@@ -346,9 +361,14 @@ class ViltContinualLearner(ContinualLearner):
             }
             pooled_out = self.vilt_encoder(**encodings)
 
-            #if self.use_TAB:
-            #    token = self.token_dict[task_key]
-            #    pooled_out,_,_ = self.TAB(torch.cat((token, pooled_out), dim=0).reshape(-1,1,768))
+            # for the first time in the loop, add the mid features into the combine feature, 
+            # if the feature key already exist, combine new one with the already existed feature
+            for key in self.mid_features:
+                if key not in combine_features:
+                    combine_features[key] = self.mid_features[key]
+                else:
+                    combine_features[key] = torch.cat((combine_features[key],self.mid_features[key]),dim=1)
+          
             pooler_outputs.append(pooled_out)
         pooled_output = torch.cat(pooler_outputs, dim=-1) # [bs, 1536]
         pooled_output_odd = pooled_output[:,1::2]
@@ -356,7 +376,7 @@ class ViltContinualLearner(ContinualLearner):
         pooled_output = torch.mean(torch.stack([pooled_output_even,pooled_output_odd],dim=0),dim=0)
 
         if self.use_TAB != 0:
-            return pooled_output
+            return pooled_output, combine_features
 
         output_logits = self.task_layer[task_key](pooled_output)
         return pooled_output, output_logits
@@ -423,6 +443,11 @@ class ViltContinualLearner(ContinualLearner):
     def set_active_adapters(self, task_key: str):
         self.vilt_encoder.vilt.set_active_adapters(task_key)
 
+
+def get_activation(name,holder):
+    def hook(model, input, output):
+        holder[name] = output.to("cuda:0")
+    return hook
 
 class ViltForImageClassification(nn.Module):
 

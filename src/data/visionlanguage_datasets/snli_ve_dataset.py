@@ -73,10 +73,13 @@ class SnliVEDataset(Dataset):
             self.data = pkl.load(open(self.cached_data_file, 'rb'))
         else:
             self.data = []
+            i = 0
             json_lines = jsonlines.open(self.annotations_file)
             for line in tqdm(json_lines):
                 image_id = int(line['Flickr30K_ID'])
-
+                if i == 80000:
+                    break
+                i += 1
                 # finetue
                 if image_id not in self.images_dataset.imageid2filename:
                         continue

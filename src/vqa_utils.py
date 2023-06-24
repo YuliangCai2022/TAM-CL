@@ -36,6 +36,23 @@ def create_vqa_labels(vqa_dir):
 
     pkl.dump(ans2label, open(os.path.join(vqa_dir, 'ans2label.pkl'), 'wb'))
 
+def create_okvqa_labels(okvqa_dir):
+
+    train_annotations = json.load(open(os.path.join(okvqa_dir, 'mscoco_train2014_annotations.json')))['annotations']
+    val_annotations = json.load(open(os.path.join(okvqa_dir, 'mscoco_val2014_annotations.json')))['annotations']
+
+    all_major_answers = []
+    for anno in train_annotations:
+        all_major_answers.extend([normalize_word(a['answer']) for a in anno['answers']])
+    for anno in val_annotations:
+        all_major_answers.extend([normalize_word(a['answer']) for a in anno['answers']])
+    counter = {k: v for k, v in Counter(all_major_answers).items() if v >= 9}
+
+    ans2label = {k: i for i, k in enumerate(counter.keys())}
+    print("Number of labels: {}".format(len(ans2label)))
+
+    pkl.dump(ans2label, open(os.path.join(okvqa_dir, 'ans2label.pkl'), 'wb'))
+
 '''
 def target_tensor(len, labels, scores):
     """ create the target by labels and scores """
@@ -53,4 +70,5 @@ def target_tensor(num_labels, labels, scores):
     return target
 
 if __name__ == '__main__':
-    create_vqa_labels('/data/datasets/MCL/vqav2/')
+    #create_vqa_labels('/data/datasets/MCL/vqav2/')
+    create_okvqa_labels('/project/rostamim_919/caiyulia/data/okvqa')

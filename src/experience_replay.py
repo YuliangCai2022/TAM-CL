@@ -47,7 +47,7 @@ class ExperienceReplayMemory:
         Samples a previous task at random
         '''
         previous_tasks = list(self.memory_buffers.keys())
-        ran_int = random.randint(0,1)
+        #ran_int = random.randint(0,1)
         #if ran_int < 0.3 and 'cocoqa' in previous_tasks:
         #    sampled_previous_task = 'cocoqa'
         #elif ran_int < 0.7:
@@ -72,6 +72,14 @@ class ExperienceReplayMemory:
             lr = 5e-4
         elif task_key == 'snli-ve':
             lr = 5e-5
+        elif task_key == 'gqa':
+            lr = 1e-4
+        elif task_key == 'okvqa':
+            lr = 1e-4
+        elif task_key == 'vqaabs':
+            lr = 5e-4
+        else:
+            lr = 1e-4
         optimizer = AdamW(optimizer_grouped_parameters, lr=lr, eps=1e-8, betas=(0.9, 0.98))
         return optimizer
 
@@ -85,7 +93,7 @@ class ExperienceReplayMemory:
 
         optimizer = self.create_optimizer(model,task_key)
         replay_batch = task_buffer.sample_replay_batch()
-        replay_loss, output, _, _ = task_trainer.train_step(model, replay_batch, optimizer,replay = 1)
+        replay_loss, output, _, _ = task_trainer.train_step(model, replay_batch, optimizer, replay = 1)
 
         logger.info("{} replay step: loss = {:.5f}".format(task_config['task_name'], replay_loss.item()))
         wandb_logger.log({task_key: {'loss': replay_loss.item()}})

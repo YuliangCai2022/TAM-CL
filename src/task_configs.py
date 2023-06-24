@@ -4,8 +4,10 @@ from train.train_snli_ve import SNLIVETrainer, LowShotSNLIVETrainer
 from train.train_vcr import VCRTrainer, LowShotVCRTrainer
 from train.train_cocoqa import COCOQATrainer, LowShotCOCOQATrainer
 from train.train_pathvqa import PathVQATrainer, LowShotPathVQATrainer
-
-SUPPORTED_VL_TASKS = ['vqa', 'nlvr2', 'snli-ve', 'vcr', 'pathvqa','cocoqa']
+from train.train_gqa import GQATrainer, LowShotGQATrainer
+from train.train_okvqa import OKVQATrainer, LowShotOKVQATrainer
+from train.train_vqaabs import VQAAbstractTrainer, LowShotVQAAbstractTrainer
+SUPPORTED_VL_TASKS = ['vqa', 'nlvr2', 'snli-ve', 'vcr', 'pathvqa','cocoqa','gqa','okvqa','vqaabs']
 
 mscoco_config = {
         'data_dir': 'ms-coco/',
@@ -23,7 +25,7 @@ vqa_config = {
         'num_labels': 3129,
         'num_images': 1,
         'model_type': 'classification',
-        'num_epochs': 1,  # changed for test, originally is 10 /7
+        'num_epochs': 5,  # changed for test, originally is 10 /7
         'lr': 1e-4,
         'weight_decay': 1e-2,
         'adam_epsilon': 1e-8,
@@ -36,6 +38,26 @@ vqa_config = {
                             'eval_epochs': [6, 8, 10]}
 }
 
+okvqa_config = {
+        'task_name': 'OK-VQA',
+        'data_dir': 'okvqa/',
+        'images_source': 'ms-coco',
+        'splits': ['train', 'val'],
+        'num_labels': 2910,
+        'num_images': 1,
+        'model_type': 'classification',
+        'num_epochs': 20,
+        'lr': 1e-4,
+        'weight_decay': 1e-2,
+        'adam_epsilon': 1e-8,
+        'warmup_ratio': 0.1,
+        'task_trainer': OKVQATrainer,
+        'random_baseline_score': 0.0,
+        'low_shot_config': {'task_trainer': LowShotOKVQATrainer,
+                            'type': 'percentage',
+                            'percentage':0.05,
+                            'eval_epochs': [6, 8, 10]}
+}
 
 pathvqa_config = {
         'task_name': 'PathVQA',
@@ -65,7 +87,7 @@ cocoqa_config = {
         'num_labels': 430,
         'num_images': 1,
         'model_type': 'classification',
-        'num_epochs': 5, #10 5
+        'num_epochs': 3, #10 5
         'lr': 1e-4,
         'weight_decay': 1e-2,
         'adam_epsilon': 1e-8,
@@ -85,7 +107,7 @@ nlvr_config = {
         'num_labels': 2,
         'num_images': 2,
         'model_type': 'classification',
-        'num_epochs': 6, #changed for test, originally is 10 6
+        'num_epochs': 5, #changed for test, originally is 10 6
         'lr': 1e-4,
         'weight_decay': 1e-2,
         'adam_epsilon': 1e-8,
@@ -99,6 +121,26 @@ nlvr_config = {
                             }
 }
 
+vqaabs_config = {
+        'task_name': 'VQA-Abstract',
+        'data_dir': 'vqaabs/',
+        'splits': ['train', 'val'],
+        'num_labels': 500,
+        'num_images': 1,
+        'model_type': 'classification',
+        'num_epochs': 5,
+        'lr': 5e-4,                     #1e-4 for full fine-tuning
+        'weight_decay': 1e-2,
+        'adam_epsilon': 1e-8,
+        'warmup_ratio': 0.1,
+        'task_trainer': VQAAbstractTrainer,
+        'random_baseline_score': 0.0,
+        'low_shot_config': {'task_trainer': LowShotVQAAbstractTrainer,
+                            'type': 'percentage',
+                            'percentage':0.05,
+                            'eval_epochs': [6, 8, 10]}
+}
+
 snli_ve_config = {
         'task_name': 'SNLI-VE',
         'data_dir': 'snli-ve/',
@@ -107,7 +149,7 @@ snli_ve_config = {
         'num_labels': 3,
         'num_images': 1,
         'model_type': 'classification',
-        'num_epochs': 4, # 5 /4
+        'num_epochs': 2, # 5 /4
         'lr': 5e-5,
         'weight_decay': 1e-2,
         'adam_epsilon': 1e-8,
@@ -263,11 +305,33 @@ coco_cls_config = {
         'warmup_ratio': 0.1,
 }
 
+gqa_config = {
+        'task_name': 'GQA',
+        'data_dir': 'gqa/questions/',
+        'images_source': 'gqa-image',
+        'splits': ['train', 'val'],
+        'num_labels': 1842,
+        'num_images': 1,
+        'model_type': 'classification',
+        'num_epochs': 6,
+        'lr': 1e-4,
+        'weight_decay': 1e-2,
+        'adam_epsilon': 1e-8,
+        'warmup_ratio': 0.1,
+        'task_trainer': GQATrainer,
+        'random_baseline_score': 0.0,
+        'low_shot_config': {'task_trainer': LowShotGQATrainer,
+                            'type': 'percentage',
+                            'percentage':0.05,
+                            'eval_epochs': [6, 8, 10]}
+}
+
 task_configs = {
     'ms-coco': mscoco_config,
     'flickr30k': flickr_config,
     'vqa': vqa_config,
     'cocoqa': cocoqa_config,
+    'gqa': gqa_config,
     'nlvr2': nlvr_config,
     'snli-ve': snli_ve_config,
     'pathvqa': pathvqa_config,
@@ -281,4 +345,6 @@ task_configs = {
     'places365': places365_config,
     'inat2019': inat2019_config,
     'coco-cls': coco_cls_config,
+    'okvqa': okvqa_config,
+    'vqaabs': vqaabs_config
 }

@@ -82,7 +82,15 @@ class VQADataset(Dataset):
             # Create data for each annotation
             annotations = json.load(open(self.annotations_file))['annotations']
             self.data = []
+            i = 0
             for anno in annotations:
+                if split == "train":
+                    if i == 40000:
+                        break
+                if split == "val":
+                    if i == 10000:
+                        break
+                i += 1
                 qid = anno['question_id']
                 correct_answer = anno['multiple_choice_answer']
                 image_id = anno['image_id']

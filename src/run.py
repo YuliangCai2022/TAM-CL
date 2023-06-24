@@ -12,7 +12,7 @@ import pickle as pkl
 import copy
 import yaml
 import pdb
-
+from vqa_utils import create_okvqa_labels
 #sys.path.insert(0, '.')
 
 import numpy as np
@@ -110,7 +110,7 @@ def main():
     parser.add_argument("--replay", type=int, default = 0,
                         help="whether to use experience replay")
 
-    parser.add_argument("--memory_percentage", type=int, default = 0.01,
+    parser.add_argument("--memory_percentage", type=int, default = 0.05,
                         help="whether to use experience replay")
 
     parser.add_argument("--replay_frequency", type=int, default = 100,
@@ -135,7 +135,6 @@ def main():
         device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu")
 
-    
     '''**************************************************** check if dataset load true ***********************************************'''
     if args.cl_algorithm == 'singletask_ft':
         assert len(args.ordered_cl_tasks) == 1
@@ -145,7 +144,7 @@ def main():
 
     '''**************************************************** load CL vilt model ****************************************************'''
     model_config = model_configs[args.encoder_name]
-    experiment_name = '{}-{}_coco_nlvr_path_snli_fulldata_smallepoch_TAMCL_singleGPU_regenerate_score'.format(args.encoder_name, args.cl_algorithm)
+    experiment_name = '{}-{}_coco_snli_gqa_nlvr_okvqa_Dytox'.format(args.encoder_name, args.cl_algorithm)
     #experiment_name = 'b_snli_nlvr_coco_path_smallepoch_MKTox_test'
 
     logger.info("the experiment name is" + experiment_name)
@@ -286,14 +285,31 @@ def main():
                             p.requires_grad = False
                         for p in model.teacher_model.transformer.TAB.mlp.parameters():
                             p.requires_grad = False
-                        for p in model.teacher_model.head['cocoqa'].parameters():
-                            p.requires_grad = False
-                        for p in model.teacher_model.head['snli-ve'].parameters():
-                            p.requires_grad = False
-                        for p in model.teacher_model.head['pathvqa'].parameters():
-                            p.requires_grad = False
-                        for p in model.teacher_model.head['nlvr2'].parameters():
-                            p.requires_grad = False
+                        if 'cocoqa' in model.teacher_model.head:
+                            for p in model.teacher_model.head['cocoqa'].parameters():
+                                p.requires_grad = False
+                        if 'snli-ve' in model.teacher_model.head:
+                            for p in model.teacher_model.head['snli-ve'].parameters():
+                                p.requires_grad = False
+                        if 'pathvqa' in model.teacher_model.head:
+                            for p in model.teacher_model.head['pathvqa'].parameters():
+                                p.requires_grad = False
+                        if 'gqa' in model.teacher_model.head:
+                            for p in model.teacher_model.head['gqa'].parameters():
+                                p.requires_grad = False
+                        if 'nlvr2' in model.teacher_model.head:
+                            for p in model.teacher_model.head['nlvr2'].parameters():
+                                p.requires_grad = False
+                        if 'okvqa' in model.teacher_model.head:
+                            for p in model.teacher_model.head['okvqa'].parameters():
+                                p.requires_grad = False
+                        if 'vqa' in model.teacher_model.head:
+                            for p in model.teacher_model.head['vqa'].parameters():
+                                p.requires_grad = False
+                        if 'vqaabs' in model.teacher_model.head:
+                            for p in model.teacher_model.head['vqaabs'].parameters():
+                                p.requires_grad = False
+                        
                         i = 0
                         for key in model.teacher_model.task_tokens:
                             model.teacher_model.task_tokens[i].requires_grad=False
@@ -340,14 +356,30 @@ def main():
                         p.requires_grad = False
                     for p in teacher_model.transformer.TAB.mlp.parameters():
                         p.requires_grad = False
-                    for p in teacher_model.head['cocoqa'].parameters():
-                        p.requires_grad = False
-                    for p in teacher_model.head['snli-ve'].parameters():
-                        p.requires_grad = False
-                    for p in teacher_model.head['pathvqa'].parameters():
-                        p.requires_grad = False
-                    for p in teacher_model.head['nlvr2'].parameters():
-                        p.requires_grad = False
+                    if 'cocoqa' in teacher_model.head:
+                        for p in teacher_model.head['cocoqa'].parameters():
+                            p.requires_grad = False
+                    if 'snli-ve' in teacher_model.head:
+                        for p in teacher_model.head['snli-ve'].parameters():
+                            p.requires_grad = False
+                    if 'pathvqa' in teacher_model.head:
+                        for p in teacher_model.head['pathvqa'].parameters():
+                            p.requires_grad = False
+                    if 'gqa' in teacher_model.head:
+                        for p in teacher_model.head['gqa'].parameters():
+                            p.requires_grad = False
+                    if 'nlvr2' in teacher_model.head:
+                        for p in teacher_model.head['nlvr2'].parameters():
+                            p.requires_grad = False
+                    if 'okvqa' in teacher_model.head:
+                        for p in teacher_model.head['okvqa'].parameters():
+                            p.requires_grad = False
+                    if 'vqa' in teacher_model.head:
+                        for p in teacher_model.head['vqa'].parameters():
+                            p.requires_grad = False
+                    if 'vqaabs' in teacher_model.head:
+                        for p in teacher_model.head['vqaabs'].parameters():
+                            p.requires_grad = False
                     i = 0
                     for key in teacher_model.task_tokens:
                         teacher_model.task_tokens[i].requires_grad=False
